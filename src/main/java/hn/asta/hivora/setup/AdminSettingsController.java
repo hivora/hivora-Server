@@ -30,7 +30,7 @@ public class AdminSettingsController {
 		ServerSettings current = settings.get();
 		// Setup completion and org identity are managed by the setup flow only.
 		updated.setSetupCompleted(current.isSetupCompleted());
-		if (updated.getOrganizationName() == null) {
+		if (isBlank(updated.getOrganizationName())) {
 			updated.setOrganizationName(current.getOrganizationName());
 		}
 		keepSecretsIfBlank(updated, current);
