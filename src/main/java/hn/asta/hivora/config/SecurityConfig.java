@@ -2,6 +2,7 @@ package hn.asta.hivora.config;
 
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
 import hn.asta.hivora.auth.TokenService;
+import hn.asta.hivora.auth.sso.CookieAuthorizationRequestRepository;
 import hn.asta.hivora.auth.sso.SsoLoginSuccessHandler;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -88,7 +89,8 @@ public class SecurityConfig {
 	@Order(2)
 	public SecurityFilterChain securityFilterChain(HttpSecurity http,
 			RateLimitFilter rateLimitFilter, SsoLoginSuccessHandler ssoSuccessHandler,
-			hn.asta.hivora.auth.sso.SsoLoginFailureHandler ssoFailureHandler)
+			hn.asta.hivora.auth.sso.SsoLoginFailureHandler ssoFailureHandler,
+			CookieAuthorizationRequestRepository cookieAuthorizationRequestRepository)
 			throws Exception {
 		http
 			.csrf(csrf -> csrf.disable()) // stateless bearer-token API, no cookies
@@ -113,6 +115,8 @@ public class SecurityConfig {
 			.oauth2ResourceServer(oauth2 -> oauth2
 				.jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter())))
 			.oauth2Login(login -> login
+				.authorizationEndpoint(endpoint -> endpoint
+					.authorizationRequestRepository(cookieAuthorizationRequestRepository))
 				.successHandler(ssoSuccessHandler)
 				.failureHandler(ssoFailureHandler))
 			.saml2Login(saml -> saml
