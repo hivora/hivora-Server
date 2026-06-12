@@ -52,7 +52,11 @@ public class IssueController {
 			LocalDate startDate,
 			LocalDate dueDate,
 			Integer estimateMinutes,
-			Double rank) {
+			Double rank,
+			// Explicit clear flags — JSON null on a date field is "no change",
+			// so clearing a date requires its own signal.
+			Boolean clearStartDate,
+			Boolean clearDueDate) {
 	}
 
 	public record CommentRequest(@NotBlank @Size(max = 10000) String text) {
@@ -118,8 +122,16 @@ public class IssueController {
 			}
 			if (request.tags() != null) issue.setTags(request.tags());
 			if (request.dependsOnIds() != null) issue.setDependsOnIds(request.dependsOnIds());
-			if (request.startDate() != null) issue.setStartDate(request.startDate());
-			if (request.dueDate() != null) issue.setDueDate(request.dueDate());
+			if (Boolean.TRUE.equals(request.clearStartDate())) {
+				issue.setStartDate(null);
+			} else if (request.startDate() != null) {
+				issue.setStartDate(request.startDate());
+			}
+			if (Boolean.TRUE.equals(request.clearDueDate())) {
+				issue.setDueDate(null);
+			} else if (request.dueDate() != null) {
+				issue.setDueDate(request.dueDate());
+			}
 			if (request.estimateMinutes() != null) issue.setEstimateMinutes(request.estimateMinutes());
 			if (request.rank() != null) issue.setRank(request.rank());
 		}, currentUser.require());
