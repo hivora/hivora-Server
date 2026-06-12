@@ -8,6 +8,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -15,8 +16,13 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.client.oidc.authentication.OidcIdTokenValidator;
+import org.springframework.security.oauth2.client.registration.ClientRegistration;
+import org.springframework.security.oauth2.core.OAuth2TokenValidator;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtDecoderFactory;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
@@ -25,6 +31,7 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtGra
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
+import org.springframework.web.client.RestTemplate;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -32,6 +39,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.List;
 
 /**
@@ -67,6 +75,32 @@ public class SecurityConfig {
 	private SecretKey secretKey() {
 		return new SecretKeySpec(
 				properties.getJwt().getSecret().getBytes(StandardCharsets.UTF_8), "HmacSHA512");
+	}
+
+	/**
+	 * OIDC ID-token decoder with generous JWKS-fetch timeouts. The default
+	 * decoder uses a short read timeout and no retry, so a single slow/cold TLS
+	 * connection to the IdP's JWKS endpoint (typical on the first login or behind
+	 * a tunnel) fails the whole login with "invalid_id_token: Read timed out".
+	 * {@link NimbusJwtDecoder} caches the key set after the first successful
+	 * fetch, so the longer timeout is only ever paid once. Validation (issuer,
+	 * audience, nonce, expiry) is unchanged — {@link OidcIdTokenValidator} is the
+	 * same validator the default factory installs.
+	 */
+	@Bean
+	public JwtDecoderFactory<ClientRegistration> idTokenDecoderFactory() {
+		return registration -> {
+			SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
+			requestFactory.setConnectTimeout(Duration.ofSeconds(15));
+			requestFactory.setReadTimeout(Duration.ofSeconds(30));
+			NimbusJwtDecoder decoder = NimbusJwtDecoder
+					.withJwkSetUri(registration.getProviderDetails().getJwkSetUri())
+					.restOperations(new RestTemplate(requestFactory))
+					.build();
+			OAuth2TokenValidator<Jwt> validator = new OidcIdTokenValidator(registration);
+			decoder.setJwtValidator(validator);
+			return decoder;
+		};
 	}
 
 	/** Separate, higher-priority chain for API docs paths — relaxed CSP so Scalar UI can load. */
