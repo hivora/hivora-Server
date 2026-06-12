@@ -20,8 +20,10 @@ import java.nio.charset.StandardCharsets;
 
 /**
  * After a successful OAuth2/OIDC or SAML login the user is provisioned and the
- * browser is redirected into the app via its deep link scheme, carrying a
- * fresh token pair.
+ * browser is redirected back into the app, carrying a fresh token pair. Native
+ * apps receive it via the deep link scheme; the web app (flow started through
+ * {@code /api/v1/auth/sso/start?return=...}) via its own origin. The token
+ * fragment after {@code #} is never sent to any server (browser-only).
  */
 @Slf4j
 @Component
@@ -37,9 +39,14 @@ public class SsoLoginSuccessHandler implements AuthenticationSuccessHandler {
 			Authentication authentication) throws IOException {
 		User user = provision(authentication);
 		TokenService.TokenPair pair = tokens.issue(user);
-		String target = properties.getApp().getCallbackScheme() + "://auth-callback"
-				+ "?access_token=" + URLEncoder.encode(pair.accessToken(), StandardCharsets.UTF_8)
+		String query = "access_token=" + URLEncoder.encode(pair.accessToken(), StandardCharsets.UTF_8)
 				+ "&refresh_token=" + URLEncoder.encode(pair.refreshToken(), StandardCharsets.UTF_8);
+
+		String webOrigin = SsoController.consumeReturnOrigin(request, response,
+				properties.getCors().getAllowedOrigins());
+		String target = webOrigin != null
+				? webOrigin + "/#/auth-callback?" + query
+				: properties.getApp().getCallbackScheme() + "://auth-callback?" + query;
 		response.sendRedirect(target);
 	}
 

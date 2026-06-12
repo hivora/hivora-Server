@@ -1,5 +1,6 @@
 package hn.asta.hivora.auth.sso;
 
+import hn.asta.hivora.config.HivoraProperties;
 import hn.asta.hivora.setup.ServerSettings;
 import hn.asta.hivora.setup.SettingsService;
 import lombok.extern.slf4j.Slf4j;
@@ -27,11 +28,27 @@ public class DynamicClientRegistrationRepository implements ClientRegistrationRe
 	public static final String OAUTH2_ID = "oauth2";
 
 	private final SettingsService settings;
+	private final HivoraProperties properties;
 	private final Map<String, ClientRegistration> cache = new ConcurrentHashMap<>();
 	private final AtomicBoolean dirty = new AtomicBoolean(true);
 
-	public DynamicClientRegistrationRepository(SettingsService settings) {
+	public DynamicClientRegistrationRepository(SettingsService settings, HivoraProperties properties) {
 		this.settings = settings;
+		this.properties = properties;
+	}
+
+	/**
+	 * Absolute redirect URI derived from the configured public base URL. Never
+	 * guessed from the incoming request: behind tunnels/proxies (ngrok, Traefik)
+	 * the request scheme is unreliable, and the IdP rejects any mismatch with
+	 * the registered redirect URI.
+	 */
+	private String redirectUri(String registrationId) {
+		String base = properties.getBaseUrl();
+		if (base.endsWith("/")) {
+			base = base.substring(0, base.length() - 1);
+		}
+		return base + "/login/oauth2/code/" + registrationId;
 	}
 
 	@EventListener
@@ -57,6 +74,7 @@ public class DynamicClientRegistrationRepository implements ClientRegistrationRe
 						.registrationId(OIDC_ID)
 						.clientId(oidc.getClientId())
 						.clientSecret(oidc.getClientSecret())
+						.redirectUri(redirectUri(OIDC_ID))
 						.scope(oidc.getScopes().split("\\s*,\\s*"))
 						.build());
 			}
@@ -70,7 +88,7 @@ public class DynamicClientRegistrationRepository implements ClientRegistrationRe
 					.clientId(oauth2.getClientId())
 					.clientSecret(oauth2.getClientSecret())
 					.authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
-					.redirectUri("{baseUrl}/login/oauth2/code/{registrationId}")
+					.redirectUri(redirectUri(OAUTH2_ID))
 					.authorizationUri(oauth2.getAuthorizationUri())
 					.tokenUri(oauth2.getTokenUri())
 					.userInfoUri(oauth2.getUserInfoUri())

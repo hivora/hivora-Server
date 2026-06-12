@@ -87,7 +87,8 @@ public class SecurityConfig {
 	@Bean
 	@Order(2)
 	public SecurityFilterChain securityFilterChain(HttpSecurity http,
-			RateLimitFilter rateLimitFilter, SsoLoginSuccessHandler ssoSuccessHandler)
+			RateLimitFilter rateLimitFilter, SsoLoginSuccessHandler ssoSuccessHandler,
+			hn.asta.hivora.auth.sso.SsoLoginFailureHandler ssoFailureHandler)
 			throws Exception {
 		http
 			.csrf(csrf -> csrf.disable()) // stateless bearer-token API, no cookies
@@ -100,7 +101,8 @@ public class SecurityConfig {
 					.policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.NO_REFERRER)))
 			.authorizeHttpRequests(auth -> auth
 				.requestMatchers(
-						"/api/v1/auth/login", "/api/v1/auth/refresh", "/api/v1/auth/sso/providers",
+						"/api/v1/auth/login", "/api/v1/auth/refresh",
+						"/api/v1/auth/sso/providers", "/api/v1/auth/sso/start/**",
 						"/api/v1/meta", "/api/v1/setup/status", "/api/v1/setup",
 						"/actuator/health", "/actuator/health/**",
 						"/login/**", "/oauth2/**", "/saml2/**", "/error")
@@ -110,8 +112,12 @@ public class SecurityConfig {
 				.anyRequest().authenticated())
 			.oauth2ResourceServer(oauth2 -> oauth2
 				.jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter())))
-			.oauth2Login(login -> login.successHandler(ssoSuccessHandler))
-			.saml2Login(saml -> saml.successHandler(ssoSuccessHandler))
+			.oauth2Login(login -> login
+				.successHandler(ssoSuccessHandler)
+				.failureHandler(ssoFailureHandler))
+			.saml2Login(saml -> saml
+				.successHandler(ssoSuccessHandler)
+				.failureHandler(ssoFailureHandler))
 			.exceptionHandling(handling -> handling
 				.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
 			.addFilterBefore(rateLimitFilter,

@@ -1,10 +1,12 @@
 spring:
   application:
     name: hivora-server
+  # Spring Boot 4: connection settings live under spring.mongodb (not spring.data.mongodb)
+  mongodb:
+    uri: ${HIVORA_MONGODB_URI:mongodb://localhost:27017/hivora}
+    database: ${HIVORA_MONGODB_NAME:hivora}
   data:
     mongodb:
-      uri: ${HIVORA_MONGODB_URI:mongodb://localhost:27017/hivora}
-      database: ${HIVORA_MONGODB_NAME:hivora}
       auto-index-creation: true
   mail:
     host: ${HIVORA_SMTP_HOST:localhost}
@@ -35,6 +37,11 @@ management:
     health:
       probes:
         enabled: true
+  health:
+    ldap:
+      # LDAP is configured at runtime via ServerSettings; the static indicator
+      # would probe localhost:389 and pollute the health endpoint and logs.
+      enabled: false
 
 hivora:
   version: '@project.version@'

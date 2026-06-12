@@ -1,17 +1,30 @@
 package hn.asta.hivora.auth.sso;
 
+import hn.asta.hivora.common.ApiException;
+import hn.asta.hivora.config.HivoraProperties;
 import hn.asta.hivora.setup.ServerSettings;
 import hn.asta.hivora.setup.SettingsService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseCookie;
+
+import java.io.IOException;
+import java.net.URI;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 @Tag(name = "SSO")
 @RestController
@@ -19,7 +32,25 @@ import java.util.List;
 @RequiredArgsConstructor
 public class SsoController {
 
+	/** Session attribute holding the validated web origin to return to after SSO. */
+	public static final String SESSION_RETURN_ORIGIN = "hivora.sso.returnOrigin";
+
+	/**
+	 * Cookie mirroring {@link #SESSION_RETURN_ORIGIN}. Sessions are in-memory and
+	 * die with the server; the cookie keeps the web return target alive so even a
+	 * failed login lands back in the web app instead of a dead deep link.
+	 */
+	public static final String COOKIE_RETURN_ORIGIN = "HIVORA_SSO_RETURN";
+
+	private static final String START_PATH = "/api/v1/auth/sso/start/";
+
+	private static final Set<String> KNOWN_IDS = Set.of(
+			DynamicClientRegistrationRepository.OIDC_ID,
+			DynamicClientRegistrationRepository.OAUTH2_ID,
+			DynamicRelyingPartyRegistrationRepository.SAML_ID);
+
 	private final SettingsService settings;
+	private final HivoraProperties properties;
 
 	public record SsoProvider(String id, String displayName, String loginUrl) {
 	}
@@ -32,16 +63,94 @@ public class SsoController {
 		List<SsoProvider> providers = new ArrayList<>();
 		if (current.getOidc().isEnabled()) {
 			providers.add(new SsoProvider("oidc", current.getOidc().getDisplayName(),
-					"/oauth2/authorization/" + DynamicClientRegistrationRepository.OIDC_ID));
+					START_PATH + DynamicClientRegistrationRepository.OIDC_ID));
 		}
 		if (current.getOauth2().isEnabled()) {
 			providers.add(new SsoProvider("oauth2", current.getOauth2().getDisplayName(),
-					"/oauth2/authorization/" + DynamicClientRegistrationRepository.OAUTH2_ID));
+					START_PATH + DynamicClientRegistrationRepository.OAUTH2_ID));
 		}
 		if (current.getSaml().isEnabled()) {
 			providers.add(new SsoProvider("saml", current.getSaml().getDisplayName(),
-					"/saml2/authenticate/" + DynamicRelyingPartyRegistrationRepository.SAML_ID));
+					START_PATH + DynamicRelyingPartyRegistrationRepository.SAML_ID));
 		}
 		return providers;
+	}
+
+	/**
+	 * Entry point for the SSO flow. Native apps call it without parameters and
+	 * receive the token pair via the {@code hivora://auth-callback} deep link.
+	 * The web app passes {@code ?return=<origin>}; after login the browser is
+	 * redirected to {@code <origin>/#/auth-callback} instead. The origin must
+	 * match one of the configured CORS origins (open-redirect protection).
+	 */
+	@Operation(summary = "Start an SSO login flow",
+			description = "Redirects to the identity provider. Web clients pass `return=<origin>` "
+					+ "(must be a configured CORS origin) to receive the tokens back in the browser.")
+	@SecurityRequirements
+	@GetMapping("/start/{registrationId}")
+	public void start(@PathVariable String registrationId,
+			@RequestParam(name = "return", required = false) String returnOrigin,
+			HttpServletRequest request, HttpServletResponse response) throws IOException {
+		if (!KNOWN_IDS.contains(registrationId)) {
+			throw ApiException.notFound("Unknown SSO provider");
+		}
+		if (returnOrigin != null && !returnOrigin.isBlank()) {
+			String origin = validatedOrigin(returnOrigin);
+			request.getSession(true).setAttribute(SESSION_RETURN_ORIGIN, origin);
+			ResponseCookie cookie = ResponseCookie.from(COOKIE_RETURN_ORIGIN, origin)
+					.httpOnly(true)
+					.secure(request.isSecure())
+					.path("/")
+					.maxAge(Duration.ofMinutes(10))
+					.sameSite("Lax")
+					.build();
+			response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+		}
+		String path = DynamicRelyingPartyRegistrationRepository.SAML_ID.equals(registrationId)
+				? "/saml2/authenticate/" + registrationId
+				: "/oauth2/authorization/" + registrationId;
+		response.sendRedirect(path);
+	}
+
+	/**
+	 * Resolves and clears the web return origin for the current SSO flow:
+	 * session attribute first, cookie as restart-safe fallback. The value is
+	 * re-validated against the CORS allowlist before use (open-redirect guard).
+	 * Returns {@code null} for native flows.
+	 */
+	public static String consumeReturnOrigin(HttpServletRequest request,
+			HttpServletResponse response, List<String> allowedOrigins) {
+		String origin = null;
+		var session = request.getSession(false);
+		if (session != null && session.getAttribute(SESSION_RETURN_ORIGIN) instanceof String s) {
+			origin = s;
+			session.removeAttribute(SESSION_RETURN_ORIGIN);
+		}
+		if (origin == null && request.getCookies() != null) {
+			for (jakarta.servlet.http.Cookie cookie : request.getCookies()) {
+				if (COOKIE_RETURN_ORIGIN.equals(cookie.getName())) {
+					origin = cookie.getValue();
+				}
+			}
+		}
+		ResponseCookie clear = ResponseCookie.from(COOKIE_RETURN_ORIGIN, "")
+				.httpOnly(true).path("/").maxAge(0).sameSite("Lax").build();
+		response.addHeader(HttpHeaders.SET_COOKIE, clear.toString());
+		return origin != null && allowedOrigins.contains(origin) ? origin : null;
+	}
+
+	private String validatedOrigin(String candidate) {
+		URI uri;
+		try {
+			uri = URI.create(candidate.trim());
+		}
+		catch (IllegalArgumentException ex) {
+			throw ApiException.badRequest("Invalid return origin");
+		}
+		String origin = uri.getScheme() + "://" + uri.getHost() + (uri.getPort() > 0 ? ":" + uri.getPort() : "");
+		if (!properties.getCors().getAllowedOrigins().contains(origin)) {
+			throw ApiException.badRequest("Return origin is not an allowed CORS origin");
+		}
+		return origin;
 	}
 }
