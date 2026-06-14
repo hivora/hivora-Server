@@ -6,6 +6,7 @@ import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.mongodb.core.index.Indexed;
+import org.springframework.data.mongodb.core.index.TextIndexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.Instant;
@@ -24,8 +25,10 @@ public class Project {
 	@Indexed(unique = true)
 	private String key;
 
+	@TextIndexed(weight = 10)
 	private String name;
 
+	@TextIndexed(weight = 2)
 	private String description;
 
 	/** User id of the project lead. */

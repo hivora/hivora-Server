@@ -5,6 +5,7 @@ import lombok.Data;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.index.Indexed;
+import org.springframework.data.mongodb.core.index.TextIndexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.Instant;
@@ -21,8 +22,10 @@ public class Sprint {
 	@Indexed
 	private String boardId;
 
+	@TextIndexed(weight = 10)
 	private String name;
 
+	@TextIndexed(weight = 3)
 	private String goal;
 
 	private LocalDate startDate;

@@ -7,6 +7,7 @@ import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.mongodb.core.index.Indexed;
+import org.springframework.data.mongodb.core.index.TextIndexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.Instant;
@@ -27,8 +28,10 @@ public class User {
 	private String email;
 
 	@Indexed(unique = true)
+	@TextIndexed(weight = 5)
 	private String username;
 
+	@TextIndexed(weight = 10)
 	private String displayName;
 
 	/** BCrypt hash; null for SSO-provisioned accounts. Never serialized. */
@@ -44,6 +47,7 @@ public class User {
 	private String avatarUrl;
 
 	/** Job title shown e.g. in the dashboard performance ranking. */
+	@TextIndexed(weight = 3)
 	private String title;
 
 	@Builder.Default
