@@ -30,7 +30,7 @@ public class GanttController {
 	private final CurrentUser currentUser;
 
 	public record GanttTask(String id, String readableId, String title, String state,
-			String assigneeId, LocalDate startDate, LocalDate dueDate, boolean resolved,
+			String type, String assigneeId, LocalDate startDate, LocalDate dueDate, boolean resolved,
 			String parentId, List<String> dependsOnIds, int progressPercent) {
 	}
 
@@ -47,7 +47,8 @@ public class GanttController {
 		boolean resolved = project.getResolvedStates().contains(issue.getState());
 		int progress = resolved ? 100 : progressFromTime(issue);
 		return new GanttTask(issue.getId(), issue.getReadableId(), issue.getTitle(),
-				issue.getState(), issue.getAssigneeId(), issue.getStartDate(), issue.getDueDate(),
+				issue.getState(), issue.getType().name(), issue.getAssigneeId(),
+				issue.getStartDate(), issue.getDueDate(),
 				resolved, issue.getParentId(), issue.getDependsOnIds(), progress);
 	}
 
