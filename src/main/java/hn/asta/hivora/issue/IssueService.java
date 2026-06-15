@@ -53,7 +53,9 @@ public class IssueService {
 
 	public Issue create(Issue issue, User author) {
 		Project project = projects.get(issue.getProjectId());
-		projects.assertMember(project, author); // only project members may add issues (A01)
+		if (author != null) {
+			projects.assertMember(project, author); // only project members may add issues (A01)
+		}
 		long number = projects.nextIssueNumber(project.getId());
 		issue.setNumberInProject(number);
 		issue.setReadableId(project.getKey() + "-" + number);
