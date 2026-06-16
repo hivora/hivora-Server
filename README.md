@@ -5,7 +5,7 @@
 
 <!-- Tagline -->
 <p align="center">
-  <b>Open-source, self-hosted project-management server — the backend of <a href="../Hivora">Hivora</a>.</b><br>
+  <b>Open-source, self-hosted project-management server — the backend of <a href="https://github.com/Ahmadre/Hivora">Hivora</a>.</b><br>
   <sub>Spring Boot 4 · Java 21 · MongoDB · no user, team or board limits, ever.</sub>
 </p>
 
