@@ -1,6 +1,7 @@
 package hn.asta.hivora.project;
 
 import hn.asta.hivora.auth.CurrentUser;
+import hn.asta.hivora.deletion.DeletionService;
 import hn.asta.hivora.issue.IssueService;
 import hn.asta.hivora.user.User;
 import jakarta.validation.Valid;
@@ -8,8 +9,11 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.List;
 import java.util.Map;
@@ -22,6 +26,7 @@ public class ProjectController {
 
 	private final ProjectService projectService;
 	private final IssueService issueService;
+	private final DeletionService deletion;
 	private final CurrentUser currentUser;
 
 	public record CreateProjectRequest(
@@ -81,5 +86,39 @@ public class ProjectController {
 	@ResponseStatus(HttpStatus.NO_CONTENT)
 	public void deleteLabel(@PathVariable String id, @RequestParam String label) {
 		issueService.removeProjectLabel(id, label, currentUser.require());
+	}
+
+	/**
+	 * Impact of deleting the project: how many boards, sprints, issues,
+	 * attachments, articles and teams are affected, plus the projects the caller
+	 * could migrate the issues into. Drives the confirmation dialog's warnings.
+	 */
+	@GetMapping("/{id}/deletion-impact")
+	public DeletionService.ProjectImpact deletionImpact(@PathVariable String id) {
+		User user = currentUser.require();
+		Project project = projectService.get(id);
+		projectService.assertLeadOrAdmin(project, user);
+		return deletion.projectImpact(project, user);
+	}
+
+	/**
+	 * Deletes the project over SSE. {@code issueStrategy} ({@code delete} /
+	 * {@code migrate}) is required when the project still has issues;
+	 * {@code migrateToProjectId} names the target for {@code migrate}. Validation
+	 * runs synchronously (returning a normal HTTP error) before the stream opens;
+	 * the cascade then streams {@code progress} and a terminal {@code done}.
+	 */
+	@GetMapping(value = "/{id}/delete-stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+	public SseEmitter deleteStream(@PathVariable String id,
+			@RequestParam(required = false) String issueStrategy,
+			@RequestParam(required = false) String migrateToProjectId) {
+		User user = currentUser.require();
+		Project project = projectService.get(id);
+		projectService.assertLeadOrAdmin(project, user);
+		DeletionService.ProjectDeleteOptions options =
+				deletion.validateProjectDelete(project, user, issueStrategy, migrateToProjectId);
+		SseEmitter emitter = deletion.newEmitter();
+		deletion.deleteProject(project, options, LocaleContextHolder.getLocale(), emitter);
+		return emitter;
 	}
 }

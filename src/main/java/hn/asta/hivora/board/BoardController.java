@@ -2,6 +2,7 @@ package hn.asta.hivora.board;
 
 import hn.asta.hivora.auth.CurrentUser;
 import hn.asta.hivora.common.ApiException;
+import hn.asta.hivora.deletion.DeletionService;
 import hn.asta.hivora.issue.Issue;
 import hn.asta.hivora.issue.IssueRepository;
 import hn.asta.hivora.project.Project;
@@ -13,8 +14,11 @@ import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -36,6 +40,7 @@ public class BoardController {
 	private final SprintRepository sprints;
 	private final IssueRepository issues;
 	private final ProjectService projects;
+	private final DeletionService deletion;
 	private final CurrentUser currentUser;
 
 	public record CreateBoardRequest(@NotBlank @Size(max = 120) String name,
@@ -47,7 +52,7 @@ public class BoardController {
 	}
 
 	public record BoardColumnView(String name, List<String> states, Integer wipLimit,
-			List<Issue> issues) {
+			int hue, List<Issue> issues) {
 	}
 
 	public record BoardView(AgileBoard board, List<Sprint> sprints, List<BoardColumnView> columns) {
@@ -118,10 +123,15 @@ public class BoardController {
 		// always reflected here. WIP limits from the stored columns are carried
 		// over by matching column name.
 		LinkedHashSet<String> stateNames = new LinkedHashSet<>();
+		Map<String, Integer> hueByName = new HashMap<>();
 		for (String projectId : board.getProjectIds()) {
 			if (!active.contains(projectId)) continue; // skip archived projects
-			projects.findOptional(projectId)
-					.ifPresent(p -> stateNames.addAll(p.workflowStateNames()));
+			projects.findOptional(projectId).ifPresent(p -> {
+				for (Project.WorkflowState s : p.getWorkflowStates()) {
+					stateNames.add(s.getName());
+					hueByName.putIfAbsent(s.getName(), s.getHue());
+				}
+			});
 			if (effectiveSprint != null) {
 				candidates.addAll(issues.findByProjectIdAndSprintId(projectId, effectiveSprint));
 			}
@@ -142,7 +152,8 @@ public class BoardController {
 			List<Issue> inColumn = candidates.stream()
 					.filter(issue -> name.equals(issue.getState()))
 					.toList();
-			columnViews.add(new BoardColumnView(name, List.of(name), wipByName.get(name), inColumn));
+			columnViews.add(new BoardColumnView(name, List.of(name), wipByName.get(name),
+					hueByName.getOrDefault(name, 250), inColumn));
 		}
 		return new BoardView(board, boardSprints, columnViews);
 	}
@@ -170,8 +181,34 @@ public class BoardController {
 		User user = currentUser.require();
 		boards.findById(id).ifPresent(board -> {
 			assertBoardAccess(board, user);
-			boards.deleteById(id);
+			// Same cascade as the streaming path: removes the board and its sprints,
+			// and detaches (never deletes) the issues so no sprint reference dangles.
+			deletion.deleteBoardNow(board);
 		});
+	}
+
+	/** Counts that drive the delete confirmation (sprints, issues to detach). */
+	@GetMapping("/{id}/deletion-impact")
+	public DeletionService.BoardImpact deletionImpact(@PathVariable String id) {
+		User user = currentUser.require();
+		AgileBoard board = boards.findById(id).orElseThrow(() -> ApiException.notFound("board"));
+		assertBoardAccess(board, user);
+		return deletion.boardImpact(board);
+	}
+
+	/**
+	 * Deletes the board over SSE, streaming {@code progress} steps and a terminal
+	 * {@code done} summary so the client can show live progress. Only the board
+	 * and its sprints are removed; issues are kept and detached.
+	 */
+	@GetMapping(value = "/{id}/delete-stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+	public SseEmitter deleteStream(@PathVariable String id) {
+		User user = currentUser.require();
+		AgileBoard board = boards.findById(id).orElseThrow(() -> ApiException.notFound("board"));
+		assertBoardAccess(board, user);
+		SseEmitter emitter = deletion.newEmitter();
+		deletion.deleteBoard(board, LocaleContextHolder.getLocale(), emitter);
+		return emitter;
 	}
 
 	@PostMapping("/{id}/sprints")

@@ -1,6 +1,7 @@
 package hn.asta.hivora.team;
 
 import hn.asta.hivora.auth.CurrentUser;
+import hn.asta.hivora.deletion.DeletionService;
 import hn.asta.hivora.project.Project;
 import hn.asta.hivora.user.User;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -9,9 +10,12 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.List;
 
@@ -28,6 +32,7 @@ import java.util.List;
 public class TeamController {
 
 	private final TeamService teamService;
+	private final DeletionService deletion;
 	private final CurrentUser currentUser;
 
 	// --- Requests ------------------------------------------------------------
@@ -118,6 +123,31 @@ public class TeamController {
 		Team team = teamService.get(id);
 		teamService.assertManage(team, user);
 		teamService.delete(team);
+	}
+
+	/** Access the team grants (members, projects, boards, issues) that members
+	 * will lose when the team is deleted — drives the confirmation warning. */
+	@GetMapping("/{id}/deletion-impact")
+	public DeletionService.TeamImpact deletionImpact(@PathVariable String id) {
+		User user = currentUser.require();
+		Team team = teamService.get(id);
+		teamService.assertManage(team, user);
+		return deletion.teamImpact(team);
+	}
+
+	/**
+	 * Deletes the team over SSE, streaming {@code progress} and a terminal
+	 * {@code done}. Projects, boards and issues are untouched; members lose the
+	 * access this team granted them.
+	 */
+	@GetMapping(value = "/{id}/delete-stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+	public SseEmitter deleteStream(@PathVariable String id) {
+		User user = currentUser.require();
+		Team team = teamService.get(id);
+		teamService.assertManage(team, user);
+		SseEmitter emitter = deletion.newEmitter();
+		deletion.deleteTeam(team, LocaleContextHolder.getLocale(), emitter);
+		return emitter;
 	}
 
 	// --- Membership ----------------------------------------------------------
