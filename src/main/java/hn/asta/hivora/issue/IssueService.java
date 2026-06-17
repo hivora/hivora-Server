@@ -325,21 +325,24 @@ public class IssueService {
 	public Page<Issue> search(String projectId, String state, String assigneeId, String sprintId,
 			String type, String text, boolean noSprint, int page, int size, User user) {
 		Query query = new Query();
-		// Non-admins only ever see issues from projects they belong to (A01).
-		if (!user.isAdmin()) {
-			List<String> visibleProjectIds = projects.visibleTo(user).stream()
-					.map(Project::getId).toList();
-			if (projectId != null && !visibleProjectIds.contains(projectId)) {
+		// Everyone is limited to active (non-archived) projects — an archived
+		// project is deactivated, so its issues never surface anywhere. Non-admins
+		// are further limited to projects they belong to (A01). visibleTo already
+		// excludes archived projects, so it is the active scope for a member.
+		List<String> scope = user.isAdmin()
+				? List.copyOf(projects.activeProjectIds())
+				: projects.visibleTo(user).stream().map(Project::getId).toList();
+		if (projectId != null) {
+			if (!scope.contains(projectId)) {
 				return Page.empty(PageRequest.of(page, Math.min(size, 100)));
 			}
-			List<String> scope = projectId != null ? List.of(projectId) : visibleProjectIds;
+			query.addCriteria(Criteria.where("projectId").is(projectId));
+		}
+		else {
 			if (scope.isEmpty()) {
 				return Page.empty(PageRequest.of(page, Math.min(size, 100)));
 			}
 			query.addCriteria(Criteria.where("projectId").in(scope));
-		}
-		else if (projectId != null) {
-			query.addCriteria(Criteria.where("projectId").is(projectId));
 		}
 		if (state != null) query.addCriteria(Criteria.where("state").is(state));
 		if (assigneeId != null) query.addCriteria(Criteria.where("assigneeId").is(assigneeId));

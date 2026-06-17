@@ -79,6 +79,24 @@ public class ProjectService {
 		return result;
 	}
 
+	/**
+	 * Ids of all non-archived (active) projects. An archived project is treated
+	 * as deactivated platform-wide, so its issues, boards and other data must
+	 * never surface anywhere; callers listing such data restrict to this set.
+	 */
+	public Set<String> activeProjectIds() {
+		Set<String> ids = new HashSet<>();
+		for (Project project : projects.findByArchivedFalse()) {
+			ids.add(project.getId());
+		}
+		return ids;
+	}
+
+	/** Whether the project exists and is active (non-archived). */
+	public boolean isActive(String projectId) {
+		return projects.findById(projectId).map(p -> !p.isArchived()).orElse(false);
+	}
+
 	public Project create(Project project, User creator) {
 		String key = project.getKey().toUpperCase(Locale.ROOT);
 		if (!key.matches("[A-Z][A-Z0-9]{1,9}")) {

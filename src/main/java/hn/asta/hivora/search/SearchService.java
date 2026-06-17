@@ -134,7 +134,17 @@ public class SearchService {
 				F_UPDATED, Issue::getId, Issue::getTitle);
 	}
 
-	private List<SearchHit> mapIssues(List<Issue> hits) {
+	/** Ids of active (non-archived) projects — archived projects are hidden
+	 * platform-wide, so their issues/projects/boards never appear in search. */
+	private Set<String> activeProjectIds() {
+		return projects.findByArchivedFalse().stream()
+				.map(Project::getId).collect(Collectors.toSet());
+	}
+
+	private List<SearchHit> mapIssues(List<Issue> rawHits) {
+		Set<String> active = activeProjectIds();
+		List<Issue> hits = rawHits.stream()
+				.filter(it -> active.contains(it.getProjectId())).toList();
 		Map<String, User> byId = userMap(hits.stream()
 				.map(Issue::getAssigneeId).filter(Objects::nonNull).collect(Collectors.toSet()));
 
@@ -160,7 +170,8 @@ public class SearchService {
 				F_UPDATED, Project::getId, Project::getName);
 	}
 
-	private List<SearchHit> mapProjects(List<Project> hits) {
+	private List<SearchHit> mapProjects(List<Project> rawHits) {
+		List<Project> hits = rawHits.stream().filter(p -> !p.isArchived()).toList();
 		Map<String, User> byId = userMap(hits.stream()
 				.flatMap(p -> p.getMemberIds().stream()).collect(Collectors.toSet()));
 
@@ -224,8 +235,11 @@ public class SearchService {
 	}
 
 	private List<SearchHit> combineBoards(List<AgileBoard> boards, List<Sprint> sprints, int cap) {
+		Set<String> active = activeProjectIds();
 		List<SearchHit> out = new ArrayList<>();
-		boards.forEach(b -> out.add(mapBoard(b)));
+		boards.stream()
+				.filter(b -> b.getProjectIds().stream().anyMatch(active::contains))
+				.forEach(b -> out.add(mapBoard(b)));
 		sprints.forEach(s -> out.add(mapSprint(s)));
 		return out.size() > cap ? out.subList(0, cap) : out;
 	}

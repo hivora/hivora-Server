@@ -19,6 +19,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
 
 @Tag(name = "Boards")
 @RestController
@@ -50,10 +51,15 @@ public class BoardController {
 	@GetMapping
 	public List<AgileBoard> list(@RequestParam(required = false) String projectId) {
 		currentUser.require();
-		if (projectId != null) {
-			return boards.findByProjectIdsContains(projectId);
-		}
-		return boards.findAll();
+		List<AgileBoard> all = projectId != null
+				? boards.findByProjectIdsContains(projectId)
+				: boards.findAll();
+		// Hide boards whose only project(s) are archived — an archived project is
+		// deactivated, so its boards must not surface.
+		Set<String> active = projects.activeProjectIds();
+		return all.stream()
+				.filter(b -> b.getProjectIds().stream().anyMatch(active::contains))
+				.toList();
 	}
 
 	@PostMapping
@@ -83,7 +89,9 @@ public class BoardController {
 		String effectiveSprint = sprintId != null ? sprintId : board.getActiveSprintId();
 
 		List<Issue> candidates = new ArrayList<>();
+		Set<String> active = projects.activeProjectIds();
 		for (String projectId : board.getProjectIds()) {
+			if (!active.contains(projectId)) continue; // skip archived projects
 			if (effectiveSprint != null) {
 				candidates.addAll(issues.findByProjectIdAndSprintId(projectId, effectiveSprint));
 			}
