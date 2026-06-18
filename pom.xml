@@ -9,11 +9,11 @@
 		<relativePath/>
 	</parent>
 	<groupId>hn.asta</groupId>
-	<artifactId>hivora-server</artifactId>
+	<artifactId>hinata-server</artifactId>
 	<version>1.0.0</version>
-	<name>hivora-server</name>
-	<description>Hivora - open source, self-hosted project management server</description>
-	<url>https://github.com/asta-hn/hivora-server</url>
+	<name>hinata-server</name>
+	<description>Hinata - open source, self-hosted project management server</description>
+	<url>https://github.com/asta-hn/hinata-server</url>
 	<licenses>
 		<license>
 			<name>GPL-3.0-only</name>

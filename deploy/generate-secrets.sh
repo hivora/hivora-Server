@@ -14,6 +14,6 @@ fi
 
 echo
 echo "Suggested secrets for your .env:"
-echo "HIVORA_JWT_SECRET=$(openssl rand -base64 64 | tr -d '\n=' | cut -c1-86)"
+echo "HINATA_JWT_SECRET=$(openssl rand -base64 64 | tr -d '\n=' | cut -c1-86)"
 echo "MONGO_ROOT_PASSWORD=$(openssl rand -hex 24)"
 echo "MINIO_ROOT_PASSWORD=$(openssl rand -hex 24)"

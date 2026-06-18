@@ -9,7 +9,7 @@
 # Produces, under deploy/x509/<env>/:
 #   ca.crt / ca.key            – the private certificate authority
 #   server.pem                 – mongod TLS cert+key (SAN matches the hosts)
-#   hivora-app.p12             – JVM keystore: the app's client cert + key
+#   hinata-app.p12             – JVM keystore: the app's client cert + key
 #   truststore.p12             – JVM truststore: the CA
 #   app-subject-dn.txt         – the client cert DN = the Mongo $external username
 #   keyfile                    – replica-set internal-auth keyfile (prod only)
@@ -23,8 +23,8 @@ FORCE="${2:-}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 OUT="$SCRIPT_DIR/$ENV"
 
-KS_PW="${HIVORA_MONGO_TLS_KEYSTORE_PASSWORD:-changeit}"
-TS_PW="${HIVORA_MONGO_TLS_TRUSTSTORE_PASSWORD:-changeit}"
+KS_PW="${HINATA_MONGO_TLS_KEYSTORE_PASSWORD:-changeit}"
+TS_PW="${HINATA_MONGO_TLS_TRUSTSTORE_PASSWORD:-changeit}"
 ORG="AStA Hochschule Niederrhein"
 
 case "$ENV" in
@@ -47,11 +47,11 @@ fi
 echo ">> [$ENV] Generating CA"
 openssl genrsa -out ca.key 4096
 openssl req -x509 -new -nodes -key ca.key -days 3650 -sha256 -out ca.crt \
-  -subj "/O=$ORG/OU=Hivora/CN=Hivora $ENV Root CA"
+  -subj "/O=$ORG/OU=Hinata/CN=Hinata $ENV Root CA"
 
 echo ">> [$ENV] Generating mongod server certificate (SAN: $SAN)"
 openssl genrsa -out server.key 4096
-openssl req -new -key server.key -out server.csr -subj "/O=$ORG/OU=Hivora/CN=$SERVER_CN"
+openssl req -new -key server.key -out server.csr -subj "/O=$ORG/OU=Hinata/CN=$SERVER_CN"
 openssl x509 -req -in server.csr -CA ca.crt -CAkey ca.key -CAcreateserial -days 825 -sha256 \
   -extfile <(printf "%s\nextendedKeyUsage=serverAuth,clientAuth\nkeyUsage=digitalSignature,keyEncipherment" "$SAN") \
   -out server.crt
@@ -61,27 +61,27 @@ chmod 600 server.pem server.key ca.key
 # The application's client certificate. Its OU differs from the server/member
 # OU so mongod treats it as a normal X.509 *user*, not a cluster member.
 echo ">> [$ENV] Generating application client certificate"
-openssl genrsa -out hivora-app.key 4096
-openssl req -new -key hivora-app.key -out hivora-app.csr \
-  -subj "/O=$ORG/OU=Hivora Application/CN=hivora-app"
-openssl x509 -req -in hivora-app.csr -CA ca.crt -CAkey ca.key -CAcreateserial -days 825 -sha256 \
+openssl genrsa -out hinata-app.key 4096
+openssl req -new -key hinata-app.key -out hinata-app.csr \
+  -subj "/O=$ORG/OU=Hinata Application/CN=hinata-app"
+openssl x509 -req -in hinata-app.csr -CA ca.crt -CAkey ca.key -CAcreateserial -days 825 -sha256 \
   -extfile <(printf "extendedKeyUsage=clientAuth\nkeyUsage=digitalSignature") \
-  -out hivora-app.crt
+  -out hinata-app.crt
 
 # Combined PEM (key + cert) so mongosh inside the container can present the
 # client cert when bootstrapping the $external user via the localhost exception.
-cat hivora-app.key hivora-app.crt > hivora-app.pem
-chmod 600 hivora-app.pem hivora-app.key
+cat hinata-app.key hinata-app.crt > hinata-app.pem
+chmod 600 hinata-app.pem hinata-app.key
 
 echo ">> [$ENV] Building PKCS#12 keystore + truststore for the JVM"
-rm -f hivora-app.p12 truststore.p12
-openssl pkcs12 -export -in hivora-app.crt -inkey hivora-app.key -name hivora-app \
-  -out hivora-app.p12 -password "pass:$KS_PW"
-keytool -importcert -noprompt -alias hivora-ca -file ca.crt \
+rm -f hinata-app.p12 truststore.p12
+openssl pkcs12 -export -in hinata-app.crt -inkey hinata-app.key -name hinata-app \
+  -out hinata-app.p12 -password "pass:$KS_PW"
+keytool -importcert -noprompt -alias hinata-ca -file ca.crt \
   -keystore truststore.p12 -storetype PKCS12 -storepass "$TS_PW" >/dev/null
 
 # MongoDB expects the X.509 username as the RFC2253 subject DN of the client cert.
-openssl x509 -in hivora-app.crt -noout -subject -nameopt RFC2253 \
+openssl x509 -in hinata-app.crt -noout -subject -nameopt RFC2253 \
   | sed 's/^subject= *//' > app-subject-dn.txt
 
 if [[ "$ENV" == "prod" ]]; then

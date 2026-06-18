@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to Hivora Server are documented here. The format follows
+All notable changes to Hinata Server are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
@@ -20,7 +20,7 @@ adheres to [Semantic Versioning](https://semver.org/).
 - Knowledge base with hierarchical Markdown articles
 - Notifications: persistent in-app + asynchronous HTML e-mails (SMTP/Mailpit)
 - E-mail-to-ticket ingestion via IMAP polling
-- First-run setup wizard API with optional `HIVORA_SETUP_*` auto-completion
+- First-run setup wizard API with optional `HINATA_SETUP_*` auto-completion
 - Runtime admin settings (SSO, e-mail ingest, push) stored in MongoDB,
   hot-reloaded without restart
 - SSO: OpenID Connect, OAuth 2.0, SAML 2.0 (IdP metadata), LDAP bind

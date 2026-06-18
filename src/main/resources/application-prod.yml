@@ -7,26 +7,26 @@ spring:
   mongodb:
     # Must be provided by the environment; see docker-compose.yml. Uses
     # tls=true&authMechanism=MONGODB-X509&authSource=$external over the replica set.
-    uri: ${HIVORA_MONGODB_URI}
+    uri: ${HINATA_MONGODB_URI}
 
-hivora:
+hinata:
   mongodb:
     tls:
-      enabled: ${HIVORA_MONGO_TLS_ENABLED:true}
-      key-store: ${HIVORA_MONGO_TLS_KEYSTORE:/etc/hivora/x509/hivora-app.p12}
-      key-store-password: ${HIVORA_MONGO_TLS_KEYSTORE_PASSWORD:}
-      trust-store: ${HIVORA_MONGO_TLS_TRUSTSTORE:/etc/hivora/x509/truststore.p12}
-      trust-store-password: ${HIVORA_MONGO_TLS_TRUSTSTORE_PASSWORD:}
+      enabled: ${HINATA_MONGO_TLS_ENABLED:true}
+      key-store: ${HINATA_MONGO_TLS_KEYSTORE:/etc/hinata/x509/hinata-app.p12}
+      key-store-password: ${HINATA_MONGO_TLS_KEYSTORE_PASSWORD:}
+      trust-store: ${HINATA_MONGO_TLS_TRUSTSTORE:/etc/hinata/x509/truststore.p12}
+      trust-store-password: ${HINATA_MONGO_TLS_TRUSTSTORE_PASSWORD:}
   security:
     # e.g. "127.0.0.1/32" for a local ngrok agent, or your ingress/load-balancer CIDR.
-    trusted-proxies: ${HIVORA_TRUSTED_PROXIES:}
+    trusted-proxies: ${HINATA_TRUSTED_PROXIES:}
 
 # API docs disabled by default in production (avoid leaking the API surface, L1/A05).
 springdoc:
   api-docs:
-    enabled: ${HIVORA_DOCS_ENABLED:false}
+    enabled: ${HINATA_DOCS_ENABLED:false}
 scalar:
-  enabled: ${HIVORA_DOCS_ENABLED:false}
+  enabled: ${HINATA_DOCS_ENABLED:false}
 
 server:
   servlet:
@@ -38,4 +38,4 @@ server:
 
 logging:
   level:
-    org.springframework.security: ${HIVORA_LOG_SECURITY:WARN}
+    org.springframework.security: ${HINATA_LOG_SECURITY:WARN}

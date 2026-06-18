@@ -22,7 +22,7 @@ run_mongosh() { # runs mongosh inside the mongo container, presenting the client
   local cid; cid="$($COMPOSE ps -q mongo)"
   docker exec -i "$cid" mongosh --quiet \
     --tls --tlsCAFile /etc/mongo/certs/ca.crt \
-    --tlsCertificateKeyFile /etc/mongo/certs/hivora-app.pem \
+    --tlsCertificateKeyFile /etc/mongo/certs/hinata-app.pem \
     --host localhost "$@"
 }
 
@@ -42,8 +42,8 @@ done
 echo "== 3/4  Ensuring the X.509 \$external user exists =="
 DN="$(cat "$SCRIPT_DIR/dev/app-subject-dn.txt")"
 CID="$($COMPOSE ps -q mongo)"
-BOOT_USER="hivora-bootstrap"
-BOOT_PW="${HIVORA_MONGO_BOOTSTRAP_PASSWORD:-hivora-dev-bootstrap}"
+BOOT_USER="hinata-bootstrap"
+BOOT_PW="${HINATA_MONGO_BOOTSTRAP_PASSWORD:-hinata-dev-bootstrap}"
 
 # The localhost exception only lets you create the FIRST user in the admin db,
 # not directly in $external. So: (1) create a bootstrap admin via the exception,
@@ -51,7 +51,7 @@ BOOT_PW="${HIVORA_MONGO_BOOTSTRAP_PASSWORD:-hivora-dev-bootstrap}"
 # Both steps tolerate "already exists" so the script is idempotent.
 docker exec -i "$CID" mongosh --quiet \
   --tls --tlsCAFile /etc/mongo/certs/ca.crt \
-  --tlsCertificateKeyFile /etc/mongo/certs/hivora-app.pem --host localhost --eval "
+  --tlsCertificateKeyFile /etc/mongo/certs/hinata-app.pem --host localhost --eval "
     try { db.getSiblingDB('admin').runCommand({ createUser: '$BOOT_USER', pwd: '$BOOT_PW',
             roles: [{ role: 'userAdminAnyDatabase', db: 'admin' }] });
           print('Created bootstrap admin'); }
@@ -60,9 +60,9 @@ docker exec -i "$CID" mongosh --quiet \
 
 docker exec -i "$CID" mongosh --quiet -u "$BOOT_USER" -p "$BOOT_PW" --authenticationDatabase admin \
   --tls --tlsCAFile /etc/mongo/certs/ca.crt \
-  --tlsCertificateKeyFile /etc/mongo/certs/hivora-app.pem --host localhost --eval "
+  --tlsCertificateKeyFile /etc/mongo/certs/hinata-app.pem --host localhost --eval "
     try { db.getSiblingDB('\$external').runCommand({ createUser: '$DN', roles: [
-            { role: 'readWrite', db: 'hivora' }, { role: 'dbAdmin', db: 'hivora' } ]});
+            { role: 'readWrite', db: 'hinata' }, { role: 'dbAdmin', db: 'hinata' } ]});
           print('Created X.509 user: $DN'); }
     catch (e) { print('X.509 user: ' + (/already exists/.test(e.errmsg) ? 'already exists' : e.errmsg)); }
   " 2>/dev/null || true
@@ -70,7 +70,7 @@ docker exec -i "$CID" mongosh --quiet -u "$BOOT_USER" -p "$BOOT_PW" --authentica
 echo "== 3/4  Verifying X.509 login works =="
 docker exec -i "$CID" mongosh --quiet \
   --tls --tlsCAFile /etc/mongo/certs/ca.crt \
-  --tlsCertificateKeyFile /etc/mongo/certs/hivora-app.pem --host localhost \
+  --tlsCertificateKeyFile /etc/mongo/certs/hinata-app.pem --host localhost \
   --authenticationMechanism MONGODB-X509 --authenticationDatabase '$external' \
   --eval "print('X.509 auth OK as ' + db.runCommand({connectionStatus:1}).authInfo.authenticatedUsers[0].user)" 2>/dev/null
 

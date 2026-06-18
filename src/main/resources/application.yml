@@ -1,6 +1,6 @@
 spring:
   application:
-    name: hivora-server
+    name: hinata-server
   # Localized error messages (messages.properties / messages_de.properties).
   # fallback-to-system-locale=false so unsupported languages use the English
   # default bundle rather than the server's OS locale.
@@ -13,30 +13,30 @@ spring:
     default: dev
   # Spring Boot 4: connection settings live under spring.mongodb (not spring.data.mongodb)
   mongodb:
-    uri: ${HIVORA_MONGODB_URI:mongodb://localhost:27017/hivora}
-    database: ${HIVORA_MONGODB_NAME:hivora}
+    uri: ${HINATA_MONGODB_URI:mongodb://localhost:27017/hinata}
+    database: ${HINATA_MONGODB_NAME:hinata}
   data:
     mongodb:
       auto-index-creation: true
   mail:
-    host: ${HIVORA_SMTP_HOST:localhost}
-    port: ${HIVORA_SMTP_PORT:1025}
-    username: ${HIVORA_SMTP_USERNAME:}
-    password: ${HIVORA_SMTP_PASSWORD:}
+    host: ${HINATA_SMTP_HOST:localhost}
+    port: ${HINATA_SMTP_PORT:1025}
+    username: ${HINATA_SMTP_USERNAME:}
+    password: ${HINATA_SMTP_PASSWORD:}
     properties:
-      mail.smtp.auth: ${HIVORA_SMTP_AUTH:false}
-      mail.smtp.starttls.enable: ${HIVORA_SMTP_STARTTLS:false}
+      mail.smtp.auth: ${HINATA_SMTP_AUTH:false}
+      mail.smtp.starttls.enable: ${HINATA_SMTP_STARTTLS:false}
   servlet:
     multipart:
       # Per-file and per-request hard limits. The per-request ceiling allows
       # several files in one multipart request; the app still enforces the
-      # file count + aggregate size (HIVORA_STORAGE_MAX_FILES_PER_REQUEST /
+      # file count + aggregate size (HINATA_STORAGE_MAX_FILES_PER_REQUEST /
       # _MAX_REQUEST_MB) on top of these.
-      max-file-size: ${HIVORA_STORAGE_MAX_UPLOAD_MB:25}MB
-      max-request-size: ${HIVORA_STORAGE_MAX_REQUEST_MB:100}MB
+      max-file-size: ${HINATA_STORAGE_MAX_UPLOAD_MB:25}MB
+      max-request-size: ${HINATA_STORAGE_MAX_REQUEST_MB:100}MB
 
 server:
-  port: ${HIVORA_PORT:8080}
+  port: ${HINATA_PORT:8080}
   forward-headers-strategy: framework
   error:
     include-stacktrace: never
@@ -64,67 +64,67 @@ management:
       # would probe localhost:389 and pollute the health endpoint and logs.
       enabled: false
 
-hivora:
+hinata:
   version: '@project.version@'
-  base-url: ${HIVORA_BASE_URL:http://localhost:8080}
+  base-url: ${HINATA_BASE_URL:http://localhost:8080}
   jwt:
-    secret: ${HIVORA_JWT_SECRET:change-me-change-me-change-me-change-me-change-me-change-me-1234}
-    access-token-seconds: ${HIVORA_JWT_ACCESS_SECONDS:900}
-    refresh-token-seconds: ${HIVORA_JWT_REFRESH_SECONDS:1209600}
+    secret: ${HINATA_JWT_SECRET:change-me-change-me-change-me-change-me-change-me-change-me-1234}
+    access-token-seconds: ${HINATA_JWT_ACCESS_SECONDS:900}
+    refresh-token-seconds: ${HINATA_JWT_REFRESH_SECONDS:1209600}
   rate-limit:
-    enabled: ${HIVORA_RATE_LIMIT_ENABLED:true}
-    api-per-minute: ${HIVORA_RATE_LIMIT_API:300}
-    auth-per-minute: ${HIVORA_RATE_LIMIT_AUTH:10}
-    max-login-failures: ${HIVORA_MAX_LOGIN_FAILURES:5}
-    login-block-minutes: ${HIVORA_LOGIN_BLOCK_MINUTES:15}
+    enabled: ${HINATA_RATE_LIMIT_ENABLED:true}
+    api-per-minute: ${HINATA_RATE_LIMIT_API:300}
+    auth-per-minute: ${HINATA_RATE_LIMIT_AUTH:10}
+    max-login-failures: ${HINATA_MAX_LOGIN_FAILURES:5}
+    login-block-minutes: ${HINATA_LOGIN_BLOCK_MINUTES:15}
   cors:
-    allowed-origins: ${HIVORA_CORS_ALLOWED_ORIGINS:}
+    allowed-origins: ${HINATA_CORS_ALLOWED_ORIGINS:}
   security:
     # CIDRs of reverse proxies allowed to set X-Forwarded-For. Empty = ignore
     # the header and use the socket address (spoofing-resistant, OWASP A07).
-    trusted-proxies: ${HIVORA_TRUSTED_PROXIES:}
+    trusted-proxies: ${HINATA_TRUSTED_PROXIES:}
   mongodb:
     tls:
-      enabled: ${HIVORA_MONGO_TLS_ENABLED:false}
-      key-store: ${HIVORA_MONGO_TLS_KEYSTORE:}
-      key-store-password: ${HIVORA_MONGO_TLS_KEYSTORE_PASSWORD:}
-      trust-store: ${HIVORA_MONGO_TLS_TRUSTSTORE:}
-      trust-store-password: ${HIVORA_MONGO_TLS_TRUSTSTORE_PASSWORD:}
+      enabled: ${HINATA_MONGO_TLS_ENABLED:false}
+      key-store: ${HINATA_MONGO_TLS_KEYSTORE:}
+      key-store-password: ${HINATA_MONGO_TLS_KEYSTORE_PASSWORD:}
+      trust-store: ${HINATA_MONGO_TLS_TRUSTSTORE:}
+      trust-store-password: ${HINATA_MONGO_TLS_TRUSTSTORE_PASSWORD:}
   app:
-    min-version: ${HIVORA_APP_MIN_VERSION:1.0.0}
-    privacy-policy-url: ${HIVORA_PRIVACY_POLICY_URL:}
-    callback-scheme: ${HIVORA_APP_CALLBACK_SCHEME:hivora}
+    min-version: ${HINATA_APP_MIN_VERSION:1.0.0}
+    privacy-policy-url: ${HINATA_PRIVACY_POLICY_URL:}
+    callback-scheme: ${HINATA_APP_CALLBACK_SCHEME:hinata}
   mail:
-    from: ${HIVORA_MAIL_FROM:hivora@localhost}
+    from: ${HINATA_MAIL_FROM:hinata@localhost}
   storage:
-    endpoint: ${HIVORA_S3_ENDPOINT:http://localhost:9000}
-    access-key: ${HIVORA_S3_ACCESS_KEY:}
-    secret-key: ${HIVORA_S3_SECRET_KEY:}
-    bucket: ${HIVORA_S3_BUCKET:hivora}
-    region: ${HIVORA_S3_REGION:us-east-1}
-    max-upload-mb: ${HIVORA_STORAGE_MAX_UPLOAD_MB:25}
+    endpoint: ${HINATA_S3_ENDPOINT:http://localhost:9000}
+    access-key: ${HINATA_S3_ACCESS_KEY:}
+    secret-key: ${HINATA_S3_SECRET_KEY:}
+    bucket: ${HINATA_S3_BUCKET:hinata}
+    region: ${HINATA_S3_REGION:us-east-1}
+    max-upload-mb: ${HINATA_STORAGE_MAX_UPLOAD_MB:25}
   setup:
-    auto-complete: ${HIVORA_SETUP_AUTO_COMPLETE:false}
-    organization-name: ${HIVORA_SETUP_ORGANIZATION_NAME:}
-    admin-email: ${HIVORA_SETUP_ADMIN_EMAIL:}
-    admin-username: ${HIVORA_SETUP_ADMIN_USERNAME:}
-    admin-password: ${HIVORA_SETUP_ADMIN_PASSWORD:}
-    admin-display-name: ${HIVORA_SETUP_ADMIN_DISPLAY_NAME:}
+    auto-complete: ${HINATA_SETUP_AUTO_COMPLETE:false}
+    organization-name: ${HINATA_SETUP_ORGANIZATION_NAME:}
+    admin-email: ${HINATA_SETUP_ADMIN_EMAIL:}
+    admin-username: ${HINATA_SETUP_ADMIN_USERNAME:}
+    admin-password: ${HINATA_SETUP_ADMIN_PASSWORD:}
+    admin-display-name: ${HINATA_SETUP_ADMIN_DISPLAY_NAME:}
 
 springdoc:
   api-docs:
     path: /v3/api-docs
-    enabled: ${HIVORA_DOCS_ENABLED:true}
+    enabled: ${HINATA_DOCS_ENABLED:true}
   swagger-ui:
     enabled: false
   show-actuator: false
   default-produces-media-type: application/json
-  packages-to-scan: hn.asta.hivora
+  packages-to-scan: hn.asta.hinata
 
 scalar:
-  enabled: ${HIVORA_DOCS_ENABLED:true}
+  enabled: ${HINATA_DOCS_ENABLED:true}
   path: /docs
 
 logging:
   level:
-    org.springframework.security: ${HIVORA_LOG_SECURITY:WARN}
+    org.springframework.security: ${HINATA_LOG_SECURITY:WARN}

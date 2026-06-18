@@ -6,16 +6,16 @@ spring:
   mongodb:
     # X.509 client auth: no username/password; the client certificate identifies
     # the app. The SSLContext (keystore/truststore) is supplied by MongoTlsConfig.
-    uri: "${HIVORA_MONGODB_URI:mongodb://localhost:27017/hivora?tls=true&authMechanism=MONGODB-X509&authSource=$external&directConnection=true}"
+    uri: "${HINATA_MONGODB_URI:mongodb://localhost:27017/hinata?tls=true&authMechanism=MONGODB-X509&authSource=$external&directConnection=true}"
 
-hivora:
+hinata:
   mongodb:
     tls:
-      enabled: ${HIVORA_MONGO_TLS_ENABLED:true}
-      key-store: ${HIVORA_MONGO_TLS_KEYSTORE:deploy/x509/dev/hivora-app.p12}
-      key-store-password: ${HIVORA_MONGO_TLS_KEYSTORE_PASSWORD:changeit}
-      trust-store: ${HIVORA_MONGO_TLS_TRUSTSTORE:deploy/x509/dev/truststore.p12}
-      trust-store-password: ${HIVORA_MONGO_TLS_TRUSTSTORE_PASSWORD:changeit}
+      enabled: ${HINATA_MONGO_TLS_ENABLED:true}
+      key-store: ${HINATA_MONGO_TLS_KEYSTORE:deploy/x509/dev/hinata-app.p12}
+      key-store-password: ${HINATA_MONGO_TLS_KEYSTORE_PASSWORD:changeit}
+      trust-store: ${HINATA_MONGO_TLS_TRUSTSTORE:deploy/x509/dev/truststore.p12}
+      trust-store-password: ${HINATA_MONGO_TLS_TRUSTSTORE_PASSWORD:changeit}
 
 # Full API docs (Scalar UI) are convenient in dev.
 springdoc:

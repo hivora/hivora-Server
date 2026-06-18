@@ -6,7 +6,7 @@
 #   ./deploy/x509/generate-certs.sh prod         # creates the PKI (if not present)
 #   docker compose up -d mongo1 mongo2 mongo-arbiter
 #   ./deploy/x509/init-prod-user.sh              # creates the X.509 user
-#   docker compose up -d hivora-server
+#   docker compose up -d hinata-server
 #
 # Uses the SCRAM root account (MONGO_ROOT_USERNAME/PASSWORD from .env) over TLS.
 set -euo pipefail
@@ -36,8 +36,8 @@ docker exec -i "$CID" mongosh --quiet \
       print('X.509 user already present: ' + dn);
     } else {
       ext.runCommand({ createUser: dn, roles: [
-        { role: 'readWrite', db: 'hivora' },
-        { role: 'dbAdmin',  db: 'hivora' }
+        { role: 'readWrite', db: 'hinata' },
+        { role: 'dbAdmin',  db: 'hinata' }
       ]});
       print('Created X.509 user: ' + dn);
     }

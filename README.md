@@ -1,11 +1,11 @@
 <!-- Logo -->
 <p align="center">
-  <img src=".github/assets/hivora_banner.svg" alt="Hivora Server" width="640">
+  <img src=".github/assets/hinata_banner.svg" alt="Hinata Server" width="640">
 </p>
 
 <!-- Tagline -->
 <p align="center">
-  <b>Open-source, self-hosted project-management server — the backend of <a href="https://github.com/Ahmadre/Hivora">Hivora</a>.</b><br>
+  <b>Open-source, self-hosted project-management server — the backend of <a href="https://github.com/Ahmadre/Hinata">Hinata</a>.</b><br>
   <sub>Spring Boot 4 · Java 21 · MongoDB · no user, team or board limits, ever.</sub>
 </p>
 
@@ -47,7 +47,7 @@
 | 🔔 **Notifications** | in-app + e-mail (SMTP), push-ready (FCM) |
 | 📨 **E-mail → ticket** | IMAP polling turns inbound mail into issues |
 | 🔑 **SSO** | OpenID Connect, OAuth 2.0, SAML 2.0, LDAP — configured at runtime |
-| 🧙 **Setup wizard** | first-run flow, or fully automated via `HIVORA_SETUP_*` |
+| 🧙 **Setup wizard** | first-run flow, or fully automated via `HINATA_SETUP_*` |
 
 ---
 
@@ -74,8 +74,8 @@ in the app.
 
 ```mermaid
 sequenceDiagram
-    participant App as 📱 Hivora App
-    participant Srv as ☕ Hivora Server
+    participant App as 📱 Hinata App
+    participant Srv as ☕ Hinata Server
     App->>Srv: request · Accept-Language: de
     Note over Srv: ApiException("error.project.notMember")
     Srv->>Srv: MessageSource resolves key → de
@@ -93,8 +93,8 @@ docker compose up -d
 ```
 
 This starts the server, a MongoDB **replica set (2 data nodes + 1 arbiter)**,
-MinIO and Mailpit. Point the Hivora app at `HIVORA_BASE_URL` and complete the
-in-app setup wizard (or set `HIVORA_SETUP_AUTO_COMPLETE=true`).
+MinIO and Mailpit. Point the Hinata app at `HINATA_BASE_URL` and complete the
+in-app setup wizard (or set `HINATA_SETUP_AUTO_COMPLETE=true`).
 
 ---
 
@@ -102,8 +102,8 @@ in-app setup wizard (or set `HIVORA_SETUP_AUTO_COMPLETE=true`).
 
 ```bash
 docker compose -f docker-compose.dev.yml up -d   # Mongo RS, Mailpit, MinIO
-HIVORA_MONGODB_URI="mongodb://localhost:27017/hivora?replicaSet=rs0&directConnection=true" \
-HIVORA_S3_ACCESS_KEY=hivora HIVORA_S3_SECRET_KEY=hivora-dev-secret \
+HINATA_MONGODB_URI="mongodb://localhost:27017/hinata?replicaSet=rs0&directConnection=true" \
+HINATA_S3_ACCESS_KEY=hinata HINATA_S3_SECRET_KEY=hinata-dev-secret \
 ./mvnw spring-boot:run
 ```
 
@@ -125,15 +125,15 @@ the app's admin area; changes apply **without restart**.
 
 | Variable | Purpose |
 | --- | --- |
-| `HIVORA_BASE_URL` | Public URL (JWT issuer, SSO redirects) |
-| `HIVORA_JWT_SECRET` | HS512 secret, ≥ 64 chars (required in production) |
-| `HIVORA_MONGODB_URI` | Mongo connection string |
-| `HIVORA_SMTP_*` | Outbound mail (Mailpit in dev) |
-| `HIVORA_S3_*` | S3-compatible storage (MinIO in dev) |
-| `HIVORA_APP_MIN_VERSION` | Force-update gate for the app |
-| `HIVORA_PRIVACY_POLICY_URL` | Privacy policy link served to the app |
-| `HIVORA_SETUP_*` | Optional non-interactive first-run setup |
-| `HIVORA_RATE_LIMIT_*` | Rate limiting &amp; brute-force thresholds |
+| `HINATA_BASE_URL` | Public URL (JWT issuer, SSO redirects) |
+| `HINATA_JWT_SECRET` | HS512 secret, ≥ 64 chars (required in production) |
+| `HINATA_MONGODB_URI` | Mongo connection string |
+| `HINATA_SMTP_*` | Outbound mail (Mailpit in dev) |
+| `HINATA_S3_*` | S3-compatible storage (MinIO in dev) |
+| `HINATA_APP_MIN_VERSION` | Force-update gate for the app |
+| `HINATA_PRIVACY_POLICY_URL` | Privacy policy link served to the app |
+| `HINATA_SETUP_*` | Optional non-interactive first-run setup |
+| `HINATA_RATE_LIMIT_*` | Rate limiting &amp; brute-force thresholds |
 
 </details>
 
