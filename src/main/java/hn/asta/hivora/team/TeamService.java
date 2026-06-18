@@ -14,7 +14,9 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Team lifecycle, membership, project attachment and the team activity feed.
@@ -140,6 +142,7 @@ public class TeamService {
 		}
 		if (added.isEmpty()) return team;
 		Team saved = teams.save(team);
+		syncProjectMembership(new HashSet<>(saved.getProjectIds()), new HashSet<>(added));
 		for (String userId : added) {
 			logActivity(saved, actor, TeamActivity.Verb.ADDED_MEMBER, userId, role.name());
 			notifications.notifyAddedToTeam(userId, saved.getId(), saved.getName());
@@ -157,6 +160,8 @@ public class TeamService {
 		if (role != null) membership.setRole(role);
 		if (access != null) membership.setAccess(normalizeAccess(team, access));
 		Team saved = teams.save(team);
+		// Role/access changes can grant or revoke project visibility for this user.
+		syncProjectMembership(new HashSet<>(saved.getProjectIds()), Set.of(userId));
 		if (roleChanged) {
 			logActivity(saved, actor,
 					role == TeamRole.ADMIN ? TeamActivity.Verb.PROMOTED : TeamActivity.Verb.DEMOTED,
@@ -174,6 +179,8 @@ public class TeamService {
 		}
 		team.getMembers().removeIf(m -> userId.equals(m.getUserId()));
 		Team saved = teams.save(team);
+		// The removed user loses any project access this team granted them.
+		syncProjectMembership(new HashSet<>(saved.getProjectIds()), Set.of(userId));
 		logActivity(saved, actor, TeamActivity.Verb.REMOVED_MEMBER, userId, null);
 		// Self-leave needs no "you were removed" notice for the actor.
 		if (!userId.equals(actor.getId())) {
@@ -194,6 +201,9 @@ public class TeamService {
 		}
 		if (attached.isEmpty()) return team;
 		Team saved = teams.save(team);
+		// Members with ALL access (and Team-Admins) immediately gain the new project.
+		syncProjectMembership(
+				attached.stream().map(Project::getId).collect(Collectors.toSet()), Set.of());
 		for (Project project : attached) {
 			logActivity(saved, actor, TeamActivity.Verb.ATTACHED_PROJECT, project.getName(), null);
 		}
@@ -216,6 +226,11 @@ public class TeamService {
 			}
 		}
 		Team saved = teams.save(team);
+		// Drop every member this team had put on the project, unless they still
+		// reach it through another team or are a project lead.
+		Set<String> formerMembers =
+				team.getMembers().stream().map(TeamMembership::getUserId).collect(Collectors.toSet());
+		syncProjectMembership(Set.of(projectId), formerMembers);
 		logActivity(saved, actor, TeamActivity.Verb.DETACHED_PROJECT, label, null);
 		return saved;
 	}
@@ -232,6 +247,8 @@ public class TeamService {
 		Project created = projects.create(project, actor); // validates key, seeds workflow
 		team.getProjectIds().add(created.getId());
 		Team saved = teams.save(team);
+		// Seed the new project with everyone who already has team-wide access.
+		syncProjectMembership(Set.of(created.getId()), Set.of());
 		logActivity(saved, actor, TeamActivity.Verb.CREATED_PROJECT, created.getName(), null);
 		return created;
 	}
@@ -242,6 +259,51 @@ public class TeamService {
 		TeamMembership membership = team.membership(userId);
 		if (membership == null) throw ApiException.notFound("user");
 		return membership;
+	}
+
+	/**
+	 * Materializes team grants into real project membership so a granted user
+	 * appears in (and can work on) the project itself — not just pass the access
+	 * gate. For each project id, every user currently granted it through <em>any</em>
+	 * team is ensured present in {@code memberIds}; each [removalCandidate] who no
+	 * longer reaches it through any team is dropped (project leads are always kept).
+	 * Recomputing from the live teams keeps grant/revoke exact and idempotent.
+	 */
+	private void syncProjectMembership(Set<String> projectIds, Set<String> removalCandidates) {
+		for (String projectId : projectIds) {
+			projects.findOptional(projectId)
+					.ifPresent(project -> reconcileProjectMembers(project, removalCandidates));
+		}
+	}
+
+	private void reconcileProjectMembers(Project project, Set<String> removalCandidates) {
+		Set<String> grantedNow = teamGrantedMembers(project.getId());
+		List<String> members = project.getMemberIds();
+		boolean changed = members.addAll(
+				grantedNow.stream().filter(id -> !members.contains(id)).toList());
+		for (String userId : removalCandidates) {
+			if (grantedNow.contains(userId) || isProjectLead(project, userId)) continue;
+			changed |= members.remove(userId);
+		}
+		if (changed) projects.save(project);
+	}
+
+	/** Every user who reaches [projectId] through any team that owns it. */
+	private Set<String> teamGrantedMembers(String projectId) {
+		Set<String> granted = new HashSet<>();
+		for (Team owner : teams.findByProjectIdsContains(projectId)) {
+			for (TeamMembership m : owner.getMembers()) {
+				if (TeamAccess.grantedProjectIds(owner, m.getUserId()).contains(projectId)) {
+					granted.add(m.getUserId());
+				}
+			}
+		}
+		return granted;
+	}
+
+	private boolean isProjectLead(Project project, String userId) {
+		if (userId.equals(project.getLeadId())) return true;
+		return project.getLeadIds() != null && project.getLeadIds().contains(userId);
 	}
 
 	/** Validates & cleans an access spec against the team's current projects. */

@@ -42,6 +42,7 @@ public class BoardController {
 	private final ProjectService projects;
 	private final DeletionService deletion;
 	private final CurrentUser currentUser;
+	private final hn.asta.hivora.team.TeamRepository teams;
 
 	public record CreateBoardRequest(@NotBlank @Size(max = 120) String name,
 			@NotEmpty List<String> projectIds, AgileBoard.Type type) {
@@ -86,6 +87,36 @@ public class BoardController {
 		if (board.getProjectIds().stream().noneMatch(visibleProjectIds(user)::contains)) {
 			throw ApiException.forbidden("error.accessDenied");
 		}
+	}
+
+	/**
+	 * Managing a board (rename / delete) is restricted to: the board's owner (the
+	 * member who created it), a lead of any project the board spans, a Team-Admin
+	 * of any team that owns such a project, and platform admins. Regular project
+	 * members may use a board but not reconfigure it.
+	 */
+	private void assertBoardManage(AgileBoard board, User user) {
+		if (canManageBoard(board, user)) return;
+		throw ApiException.forbidden("error.board.notManager");
+	}
+
+	private boolean canManageBoard(AgileBoard board, User user) {
+		if (user.isAdmin()) return true;
+		if (user.getId().equals(board.getOwnerId())) return true;
+		for (String projectId : board.getProjectIds()) {
+			if (projects.findOptional(projectId).map(p -> isProjectLead(p, user)).orElse(false)) {
+				return true;
+			}
+			for (hn.asta.hivora.team.Team team : teams.findByProjectIdsContains(projectId)) {
+				if (team.isAdmin(user.getId())) return true;
+			}
+		}
+		return false;
+	}
+
+	private boolean isProjectLead(Project project, User user) {
+		if (user.getId().equals(project.getLeadId())) return true;
+		return project.getLeadIds() != null && project.getLeadIds().contains(user.getId());
 	}
 
 	@PostMapping
@@ -163,6 +194,10 @@ public class BoardController {
 		User user = currentUser.require();
 		AgileBoard board = boards.findById(id).orElseThrow(() -> ApiException.notFound("board"));
 		assertBoardAccess(board, user);
+		// Renaming a board is a management action — gate it beyond plain access.
+		if (updated.getName() != null && !updated.getName().equals(board.getName())) {
+			assertBoardManage(board, user);
+		}
 		if (updated.getName() != null) board.setName(updated.getName());
 		if (updated.getType() != null) board.setType(updated.getType());
 		if (updated.getProjectIds() != null && !updated.getProjectIds().isEmpty()) {
@@ -180,7 +215,7 @@ public class BoardController {
 	public void delete(@PathVariable String id) {
 		User user = currentUser.require();
 		boards.findById(id).ifPresent(board -> {
-			assertBoardAccess(board, user);
+			assertBoardManage(board, user);
 			// Same cascade as the streaming path: removes the board and its sprints,
 			// and detaches (never deletes) the issues so no sprint reference dangles.
 			deletion.deleteBoardNow(board);
@@ -192,7 +227,7 @@ public class BoardController {
 	public DeletionService.BoardImpact deletionImpact(@PathVariable String id) {
 		User user = currentUser.require();
 		AgileBoard board = boards.findById(id).orElseThrow(() -> ApiException.notFound("board"));
-		assertBoardAccess(board, user);
+		assertBoardManage(board, user);
 		return deletion.boardImpact(board);
 	}
 
@@ -205,7 +240,7 @@ public class BoardController {
 	public SseEmitter deleteStream(@PathVariable String id) {
 		User user = currentUser.require();
 		AgileBoard board = boards.findById(id).orElseThrow(() -> ApiException.notFound("board"));
-		assertBoardAccess(board, user);
+		assertBoardManage(board, user);
 		SseEmitter emitter = deletion.newEmitter();
 		deletion.deleteBoard(board, LocaleContextHolder.getLocale(), emitter);
 		return emitter;

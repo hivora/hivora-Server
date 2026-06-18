@@ -86,6 +86,21 @@ class TeamServiceTest {
 	}
 
 	@Test
+	void grantingAccessMaterializesUserIntoProjectMembers() {
+		Team team = teamWithAdmin("u1");
+		team.getProjectIds().add("p1");
+		Project project = Project.builder().id("p1").name("Alpha").build();
+		when(projects.findOptional("p1")).thenReturn(java.util.Optional.of(project));
+		// Reconciliation reads the teams that own the project back from the repo.
+		when(teams.findByProjectIdsContains("p1")).thenReturn(List.of(team));
+
+		service.addMembers(team, user("u1", Role.ADMIN), List.of("u2"), TeamRole.MEMBER,
+				ProjectAccess.some(List.of("p1")));
+
+		assertThat(project.getMemberIds()).contains("u2");
+	}
+
+	@Test
 	void someAccessMustBeSubsetOfTeamProjects() {
 		Team team = teamWithAdmin("u1"); // owns no projects
 		assertThatThrownBy(() -> service.addMembers(team, user("u1", Role.ADMIN), List.of("u2"),
