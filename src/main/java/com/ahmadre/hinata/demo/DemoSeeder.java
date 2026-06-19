@@ -183,9 +183,9 @@ public class DemoSeeder {
 		if (s.isSetupCompleted()) {
 			admin = users.findAll().stream().filter(User::isAdmin).findFirst()
 					.orElseGet(() -> userService.createLocal("admin@hinata.dev", "admin",
-							"Rebar Ahmad", DEMO_PASSWORD, Set.of(Role.ADMIN, Role.MEMBER)));
+							"admin", DEMO_PASSWORD, Set.of(Role.ADMIN, Role.MEMBER)));
 		} else {
-			admin = userService.createLocal("admin@hinata.dev", "admin", "Rebar Ahmad",
+			admin = userService.createLocal("admin@hinata.dev", "admin", "admin",
 					DEMO_PASSWORD, Set.of(Role.ADMIN, Role.MEMBER));
 			s.setOrganizationName("Hinata");
 			s.setSetupCompleted(true);
