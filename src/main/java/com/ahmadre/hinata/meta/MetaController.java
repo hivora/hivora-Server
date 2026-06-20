@@ -41,6 +41,7 @@ public class MetaController {
 
 	public record Meta(String serverVersion, String minAppVersion, String organizationName,
 			String logoUrl, boolean setupCompleted, String privacyPolicyUrl,
+			String iosStoreUrl, String androidStoreUrl, String macosStoreUrl,
 			Map<String, Boolean> featureFlags, UploadLimits uploadLimits) {
 	}
 
@@ -67,6 +68,9 @@ public class MetaController {
 				current.getGeneral().getLogoUrl(),
 				current.isSetupCompleted(),
 				firstNonBlank(app.getPrivacyPolicyUrl(), appDefaults.getPrivacyPolicyUrl()),
+				firstNonBlank(app.getIosStoreUrl(), appDefaults.getIosStoreUrl()),
+				firstNonBlank(app.getAndroidStoreUrl(), appDefaults.getAndroidStoreUrl()),
+				firstNonBlank(app.getMacosStoreUrl(), appDefaults.getMacosStoreUrl()),
 				featureFlags,
 				new UploadLimits(storage.getMaxUploadMb(), storage.getMaxFilesPerRequest(),
 						storage.getMaxRequestMb(), storage.getAllowedContentTypes()));

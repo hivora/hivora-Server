@@ -62,6 +62,12 @@ public class ServerSettings {
 		/** Minimum app version; older clients are forced to update. */
 		private String minVersion;
 		private String privacyPolicyUrl;
+		/** App Store listing the iOS app links to when an update is required. */
+		private String iosStoreUrl;
+		/** Play Store listing the Android app links to when an update is required. */
+		private String androidStoreUrl;
+		/** Mac App Store listing the macOS app links to when an update is required. */
+		private String macosStoreUrl;
 		/** Optional client feature flags (name → enabled). */
 		private Map<String, Boolean> featureFlags = new LinkedHashMap<>();
 	}

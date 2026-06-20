@@ -35,6 +35,15 @@ public class AdminSettingsController {
 		if (isBlank(app.getPrivacyPolicyUrl())) {
 			app.setPrivacyPolicyUrl(defaults.getPrivacyPolicyUrl());
 		}
+		if (isBlank(app.getIosStoreUrl())) {
+			app.setIosStoreUrl(defaults.getIosStoreUrl());
+		}
+		if (isBlank(app.getAndroidStoreUrl())) {
+			app.setAndroidStoreUrl(defaults.getAndroidStoreUrl());
+		}
+		if (isBlank(app.getMacosStoreUrl())) {
+			app.setMacosStoreUrl(defaults.getMacosStoreUrl());
+		}
 		if (app.getFeatureFlags() == null || app.getFeatureFlags().isEmpty()) {
 			app.setFeatureFlags(new java.util.LinkedHashMap<>(defaults.getFeatureFlags()));
 		}
