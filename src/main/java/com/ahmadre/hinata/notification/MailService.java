@@ -1,5 +1,6 @@
 package com.ahmadre.hinata.notification;
 
+import jakarta.mail.internet.InternetAddress;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
@@ -22,6 +23,7 @@ public class MailService {
 
 	private final ObjectProvider<JavaMailSender> mailSender;
 	private final ObjectProvider<SpringTemplateEngine> templateEngine;
+	private final SmtpMailSenderProvider smtp;
 
 	@Value("${hinata.mail.from:hinata@localhost}")
 	private String from;
@@ -48,7 +50,10 @@ public class MailService {
 	}
 
 	private void dispatch(String to, String subject, String html) {
-		JavaMailSender sender = mailSender.getIfAvailable();
+		// Prefer the admin-area SMTP (configured at runtime), falling back to a
+		// Spring-autoconfigured sender if present.
+		JavaMailSender sender = smtp.sender();
+		if (sender == null) sender = mailSender.getIfAvailable();
 		if (sender == null) {
 			log.debug("No SMTP server configured; skipping mail to {}", to);
 			return;
@@ -56,7 +61,11 @@ public class MailService {
 		try {
 			var message = sender.createMimeMessage();
 			MimeMessageHelper helper = new MimeMessageHelper(message, "UTF-8");
-			helper.setFrom(from);
+			String fromAddress = smtp.fromAddress() != null ? smtp.fromAddress() : from;
+			String fromName = smtp.fromName();
+			helper.setFrom(fromName != null
+					? new InternetAddress(fromAddress, fromName)
+					: new InternetAddress(fromAddress));
 			helper.setTo(to);
 			helper.setSubject(subject);
 			helper.setText(html, true);

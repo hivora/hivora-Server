@@ -3,16 +3,21 @@ package com.ahmadre.hinata.storage;
 import com.ahmadre.hinata.common.ApiException;
 import com.ahmadre.hinata.config.HinataProperties;
 import io.minio.BucketExistsArgs;
+import io.minio.GetObjectArgs;
+import io.minio.GetObjectResponse;
 import io.minio.GetPresignedObjectUrlArgs;
 import io.minio.MakeBucketArgs;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
 import io.minio.RemoveObjectArgs;
+import io.minio.errors.ErrorResponseException;
 import io.minio.http.Method;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.ByteArrayInputStream;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
@@ -70,6 +75,58 @@ public class StorageService {
 		catch (Exception ex) {
 			log.error("Upload failed: {}", ex.getMessage());
 			throw new ApiException(org.springframework.http.HttpStatus.BAD_GATEWAY, "error.storage.unavailable");
+		}
+	}
+
+	/** A binary object read back from storage. */
+	public record StoredObject(byte[] data, String contentType) {
+	}
+
+	/**
+	 * Stores already-prepared bytes at an explicit (deterministic) object key —
+	 * e.g. {@code avatars/{userId}.jpg}. Unlike {@link #upload(MultipartFile)}
+	 * this trusts the caller (used for server-generated, already-validated and
+	 * compressed content), so it does no content-type allow-listing.
+	 */
+	public void putObject(String objectKey, byte[] data, String contentType) {
+		requireConfigured();
+		try {
+			ensureBucket();
+			client.putObject(PutObjectArgs.builder()
+					.bucket(properties.getStorage().getBucket())
+					.object(objectKey)
+					.contentType(contentType)
+					.stream(new ByteArrayInputStream(data), data.length, -1)
+					.build());
+		}
+		catch (Exception ex) {
+			log.error("Put object {} failed: {}", objectKey, ex.getMessage());
+			throw new ApiException(org.springframework.http.HttpStatus.BAD_GATEWAY,
+					"error.storage.unavailable");
+		}
+	}
+
+	/** Reads an object's bytes + content type, or empty when it doesn't exist. */
+	public Optional<StoredObject> getObject(String objectKey) {
+		requireConfigured();
+		try (GetObjectResponse response = client.getObject(GetObjectArgs.builder()
+				.bucket(properties.getStorage().getBucket())
+				.object(objectKey)
+				.build())) {
+			String contentType = response.headers().get("Content-Type");
+			return Optional.of(new StoredObject(response.readAllBytes(),
+					contentType != null ? contentType : "application/octet-stream"));
+		}
+		catch (ErrorResponseException ex) {
+			if ("NoSuchKey".equals(ex.errorResponse().code())) {
+				return Optional.empty();
+			}
+			throw new ApiException(org.springframework.http.HttpStatus.BAD_GATEWAY,
+					"error.storage.unavailable");
+		}
+		catch (Exception ex) {
+			throw new ApiException(org.springframework.http.HttpStatus.BAD_GATEWAY,
+					"error.storage.unavailable");
 		}
 	}
 

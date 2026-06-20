@@ -2,8 +2,6 @@ package com.ahmadre.hinata.me;
 
 import com.ahmadre.hinata.auth.CurrentUser;
 import com.ahmadre.hinata.common.ApiException;
-import com.ahmadre.hinata.project.Project;
-import com.ahmadre.hinata.team.Team;
 import com.ahmadre.hinata.user.User;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirements;
@@ -39,14 +37,15 @@ public class MeController {
 
 	public record MeResponse(String id, String displayName, String username, String email,
 			boolean emailVerified, String pendingEmail, String title, String locale, String origin,
-			List<String> roles, boolean active, Instant createdAt, Instant passwordChangedAt,
-			TwoFactorDto twoFactor, NotificationPreferences notificationPreferences) {
+			List<String> roles, boolean active, String avatarUrl, Instant createdAt,
+			Instant passwordChangedAt, TwoFactorDto twoFactor,
+			NotificationPreferences notificationPreferences) {
 
 		static MeResponse from(User u) {
 			return new MeResponse(u.getId(), u.getDisplayName(), u.getUsername(), u.getEmail(),
 					u.isEmailVerified(), u.getPendingEmail(), u.getTitle(), u.getLocale(),
 					u.getOrigin().name(), u.getRoles().stream().map(Enum::name).sorted().toList(),
-					u.isActive(), u.getCreatedAt(), u.getPasswordChangedAt(),
+					u.isActive(), u.getAvatarUrl(), u.getCreatedAt(), u.getPasswordChangedAt(),
 					new TwoFactorDto(u.isTotpEnabled(), "TOTP", u.recoveryCodesRemaining(),
 							u.getTotpEnabledAt()),
 					u.getNotificationPreferences());

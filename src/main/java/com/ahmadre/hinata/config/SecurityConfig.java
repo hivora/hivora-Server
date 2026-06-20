@@ -178,6 +178,7 @@ public class SecurityConfig {
 						"/api/v1/auth/invite/confirm",
 						"/api/v1/me/email-change/confirm", "/api/v1/me/password-reset/confirm",
 						"/api/v1/meta", "/api/v1/meta/logo",
+						"/api/v1/users/*/avatar",
 						"/api/v1/setup/status", "/api/v1/setup",
 						"/actuator/health", "/actuator/health/**",
 						"/login/**", "/oauth2/**", "/saml2/**", "/error")
