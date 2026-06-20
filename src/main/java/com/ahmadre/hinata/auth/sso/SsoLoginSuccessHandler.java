@@ -49,7 +49,7 @@ public class SsoLoginSuccessHandler implements AuthenticationSuccessHandler {
 		String webOrigin = SsoController.consumeReturnOrigin(request, response,
 				properties.getCors().getAllowedOrigins());
 		String target = webOrigin != null
-				? webOrigin + "/#/auth-callback?" + query
+				? webOrigin + "/auth-callback?" + query
 				: properties.getApp().getCallbackScheme() + "://auth-callback?" + query;
 		response.sendRedirect(target);
 	}

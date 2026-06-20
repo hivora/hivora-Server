@@ -38,7 +38,7 @@ public class SsoLoginFailureHandler implements AuthenticationFailureHandler {
 		String webOrigin = SsoController.consumeReturnOrigin(request, response,
 				properties.getCors().getAllowedOrigins());
 		String target = webOrigin != null
-				? webOrigin + "/#/login?ssoError=" + error
+				? webOrigin + "/login?ssoError=" + error
 				: properties.getApp().getCallbackScheme() + "://auth-callback?error=" + error;
 		response.sendRedirect(target);
 	}

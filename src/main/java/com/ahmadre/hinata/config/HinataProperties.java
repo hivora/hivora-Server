@@ -25,8 +25,37 @@ public class HinataProperties {
 	@NotBlank
 	private String baseUrl = "http://localhost:8080";
 
+	/**
+	 * Public base URL of the Flutter frontend (web app), e.g.
+	 * {@code http://localhost:3000}. Email deep links point here so the user lands
+	 * on a real in-app page rather than a backend-rendered form. Blank ⇒ falls
+	 * back to {@link #baseUrl}.
+	 */
+	private String webBaseUrl = "";
+
 	/** Optional defaults used to pre-fill or skip the first-run setup wizard. */
 	private Setup setup = new Setup();
+
+	/** Frontend base URL for deep links ({@link #webBaseUrl} or {@link #baseUrl}). */
+	public String webBase() {
+		String url = (webBaseUrl != null && !webBaseUrl.isBlank()) ? webBaseUrl : baseUrl;
+		return url.endsWith("/") ? url.substring(0, url.length() - 1) : url;
+	}
+
+	/** Email deep link to the in-app invitation-acceptance page. */
+	public String inviteLink(String token) {
+		return webBase() + "/invite?token=" + enc(token) + "&server=" + enc(baseUrl);
+	}
+
+	/** Email deep link to the in-app password-reset page. */
+	public String resetLink(String token) {
+		return webBase() + "/reset-password?token=" + enc(token) + "&server=" + enc(baseUrl);
+	}
+
+	private static String enc(String value) {
+		return java.net.URLEncoder.encode(value == null ? "" : value,
+				java.nio.charset.StandardCharsets.UTF_8);
+	}
 
 	private Jwt jwt = new Jwt();
 	private RateLimit rateLimit = new RateLimit();

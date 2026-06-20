@@ -67,6 +67,9 @@ management:
 hinata:
   version: '@project.version@'
   base-url: ${HINATA_BASE_URL:http://localhost:8080}
+  # Frontend (Flutter web) base URL for email deep links, e.g. http://localhost:3000.
+  # Blank ⇒ falls back to base-url.
+  web-base-url: ${HINATA_WEB_BASE_URL:}
   jwt:
     secret: ${HINATA_JWT_SECRET:change-me-change-me-change-me-change-me-change-me-change-me-1234}
     access-token-seconds: ${HINATA_JWT_ACCESS_SECONDS:900}

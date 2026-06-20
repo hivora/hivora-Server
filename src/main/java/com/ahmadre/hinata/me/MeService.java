@@ -116,11 +116,8 @@ public class MeService {
 		user.setPasswordResetTokenHash(passwordEncoder.encode(secret));
 		user.setPasswordResetExpiresAt(Instant.now().plusSeconds(30L * 60));
 		users.save(user);
-		// Hand off to the app via the deep-link landing page (auth package) so the
-		// user resets in-app rather than a bare browser form.
-		String resetUrl = apiBase() + "/api/v1/auth/reset/confirm?token="
-				+ user.getId() + "." + secret;
-		accountMail.sendPasswordReset(user, resetUrl);
+		// Deep link straight to the in-app reset page (Flutter), no backend form.
+		accountMail.sendPasswordReset(user, properties.resetLink(user.getId() + "." + secret));
 	}
 
 	public void confirmPasswordReset(String token, String newPassword) {
