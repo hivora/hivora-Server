@@ -57,9 +57,12 @@ import java.util.List;
 public class SecurityConfig {
 
 	private final HinataProperties properties;
+	private final com.ahmadre.hinata.me.SessionService sessions;
 
-	public SecurityConfig(HinataProperties properties) {
+	public SecurityConfig(HinataProperties properties,
+			com.ahmadre.hinata.me.SessionService sessions) {
 		this.properties = properties;
+		this.sessions = sessions;
 	}
 
 	@Bean
@@ -96,8 +99,20 @@ public class SecurityConfig {
 				TokenService.TYPE_ACCESS.equals(jwt.getClaimAsString(TokenService.CLAIM_TYPE))
 						? OAuth2TokenValidatorResult.success()
 						: OAuth2TokenValidatorResult.failure(error);
+		// Reject access tokens whose session has been revoked (admin "terminate
+		// sessions", password reset, deactivation, or the user signing a device
+		// out). Without this an already-issued access token would keep working
+		// until it expired (up to its full lifetime), so revocation would not take
+		// effect in real time. Session-less legacy/service tokens (null sid) pass.
+		OAuth2Error revoked = new OAuth2Error("invalid_token", "Session has been revoked", null);
+		OAuth2TokenValidator<Jwt> sessionAlive = jwt -> {
+			String sid = jwt.getClaimAsString(TokenService.CLAIM_SID);
+			return (sid == null || sessions.isActive(sid))
+					? OAuth2TokenValidatorResult.success()
+					: OAuth2TokenValidatorResult.failure(revoked);
+		};
 		decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(
-				JwtValidators.createDefault(), accessOnly));
+				JwtValidators.createDefault(), accessOnly, sessionAlive));
 		return decoder;
 	}
 

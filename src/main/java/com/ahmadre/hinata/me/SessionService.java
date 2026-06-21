@@ -20,6 +20,7 @@ public class SessionService {
 
 	private final RefreshSessionRepository sessions;
 	private final HinataProperties properties;
+	private final UserEvents userEvents;
 
 	/** Opens a new session for a fresh sign-in. Best-effort device metadata. */
 	public RefreshSession start(User user, String ip, String userAgent) {
@@ -61,7 +62,10 @@ public class SessionService {
 	public void revoke(String userId, String sessionId) {
 		sessions.findById(sessionId)
 				.filter(session -> session.getUserId().equals(userId))
-				.ifPresent(sessions::delete);
+				.ifPresent(session -> {
+					sessions.delete(session);
+					userEvents.revoked(userId, sessionId); // sign that device out now
+				});
 	}
 
 	public void revokeOthers(String userId, String keepSessionId) {
@@ -71,10 +75,12 @@ public class SessionService {
 		else {
 			sessions.deleteByUserId(userId);
 		}
+		userEvents.revokedOthers(userId, keepSessionId); // sign the other devices out now
 	}
 
 	public void revokeAll(String userId) {
 		sessions.deleteByUserId(userId);
+		userEvents.revokedAll(userId); // sign every device out now
 	}
 
 	/** Masks the last two octets of an IPv4 address (best-effort for IPv6). */

@@ -1,6 +1,7 @@
 package com.ahmadre.hinata.auth;
 
 import com.ahmadre.hinata.common.ApiException;
+import com.ahmadre.hinata.me.SessionService;
 import com.ahmadre.hinata.user.User;
 import com.ahmadre.hinata.user.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -15,10 +16,19 @@ import org.springframework.stereotype.Component;
 public class CurrentUser {
 
 	private final UserRepository users;
+	private final SessionService sessions;
 
 	public User require() {
 		Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 		if (authentication instanceof JwtAuthenticationToken jwt) {
+			// Reject access tokens whose session has been revoked (admin "terminate
+			// sessions", a sign-out from another device, a password reset, …) so
+			// revocation takes effect on the very next request rather than waiting
+			// for the token to expire. Session-less legacy tokens (null sid) pass.
+			String sid = TokenService.sessionId(jwt.getToken());
+			if (sid != null && !sessions.isActive(sid)) {
+				throw ApiException.unauthorized("error.auth.sessionRevoked");
+			}
 			return users.findById(jwt.getToken().getSubject())
 					.filter(User::isActive)
 					.orElseThrow(() -> ApiException.unauthorized("error.auth.unknownUser"));

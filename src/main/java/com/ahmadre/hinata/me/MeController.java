@@ -32,6 +32,7 @@ public class MeController {
 
 	private final MeService me;
 	private final CurrentUser currentUser;
+	private final UserEvents userEvents;
 
 	// --- DTOs -----------------------------------------------------------------
 
@@ -151,6 +152,18 @@ public class MeController {
 		return me.sessions(userId).stream().map(s -> new SessionDto(s.getId(),
 				s.getId().equals(current), s.getKind().name(), s.getOs(), s.getClient(), s.getApp(),
 				s.getLocation(), s.getIpMasked(), s.getLastActiveAt())).toList();
+	}
+
+	/**
+	 * Long-lived account event stream. The app keeps this open while signed in;
+	 * the server pushes a {@code logout} frame when this device's session is
+	 * revoked (by the user, an admin, a password reset, or deactivation), so the
+	 * client signs out immediately instead of waiting for its next request to 401.
+	 */
+	@Operation(summary = "Live account event stream (real-time sign-out)")
+	@GetMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+	public org.springframework.web.servlet.mvc.method.annotation.SseEmitter stream() {
+		return userEvents.subscribe(currentUser.requireId(), currentUser.currentSessionId());
 	}
 
 	@Operation(summary = "Revoke one device session")
