@@ -1,11 +1,11 @@
 package com.ahmadre.hinata.notification;
 
+import com.ahmadre.hinata.config.HinataProperties;
 import com.ahmadre.hinata.issue.Issue;
 import com.ahmadre.hinata.user.Role;
 import com.ahmadre.hinata.user.User;
 import com.ahmadre.hinata.user.UserRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.HashMap;
@@ -25,11 +25,9 @@ public class NotificationService {
 	private final NotificationRepository notifications;
 	private final UserRepository users;
 	private final MailService mail;
+	private final HinataProperties props;
 
 	private static final String SUBJECT_PREFIX = "[Hinata] ";
-
-	@Value("${hinata.base-url:}")
-	private String baseUrl;
 
 	public void notifyIssueAssigned(Issue issue) {
 		deliver(Set.of(issue.getAssigneeId()), Notification.Type.ISSUE_ASSIGNED,
@@ -94,7 +92,9 @@ public class NotificationService {
 	private void deliverOne(User user, Notification.Type type, String title, String body, String link) {
 		notifications.save(Notification.builder()
 				.userId(user.getId()).type(type).title(title).body(body).link(link).build());
-		mail.send(user.getEmail(), SUBJECT_PREFIX + title, title, body, link);
+		// In-app notifications keep the relative route; the e-mail button needs an
+		// absolute deep link to the frontend so it works from any mail client.
+		mail.send(user.getEmail(), SUBJECT_PREFIX + title, title, body, props.deepLink(link));
 	}
 
 	private String teamLink(String teamId) {
@@ -182,8 +182,7 @@ public class NotificationService {
 	}
 
 	private String signInLink() {
-		if (baseUrl == null || baseUrl.isBlank()) return null;
-		return baseUrl.replaceAll("/+$", "") + "/login";
+		return props.deepLink("/login");
 	}
 
 	private Set<String> watchersWithout(Issue issue, User exclude) {
@@ -201,7 +200,9 @@ public class NotificationService {
 			users.findById(userId).filter(User::isActive).ifPresent(user -> {
 				notifications.save(Notification.builder()
 						.userId(user.getId()).type(type).title(title).body(body).link(link).build());
-				mail.send(user.getEmail(), SUBJECT_PREFIX + title, title, body, null);
+				// In-app notifications keep the relative route; the e-mail button gets
+				// an absolute deep link to the issue on the frontend.
+				mail.send(user.getEmail(), SUBJECT_PREFIX + title, title, body, props.deepLink(link));
 			});
 		}
 	}
