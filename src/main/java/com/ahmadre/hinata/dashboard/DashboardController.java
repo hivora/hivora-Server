@@ -66,11 +66,17 @@ public class DashboardController {
 
 	private List<Issue> todayTasks(User user) {
 		LocalDate today = LocalDate.now();
-		Query query = Query.query(Criteria.where("assigneeId").is(user.getId())
-				.and("resolvedAt").is(null)
-				.orOperator(
-						Criteria.where("dueDate").lte(today),
-						Criteria.where("priority").in("SHOWSTOPPER", "CRITICAL", "MAJOR")));
+		// "Assigned to me" matches primary or secondary assignee (legacy + new docs).
+		Criteria assignedToMe = new Criteria().orOperator(
+				Criteria.where("assigneeIds").is(user.getId()),
+				Criteria.where("assigneeId").is(user.getId()));
+		Criteria urgent = new Criteria().orOperator(
+				Criteria.where("dueDate").lte(today),
+				Criteria.where("priority").in("SHOWSTOPPER", "CRITICAL", "MAJOR"));
+		Query query = Query.query(new Criteria().andOperator(
+				assignedToMe,
+				Criteria.where("resolvedAt").is(null),
+				urgent));
 		query.limit(12);
 		return mongo.find(query, Issue.class).stream()
 				.sorted(Comparator.comparing(Issue::getPriority))

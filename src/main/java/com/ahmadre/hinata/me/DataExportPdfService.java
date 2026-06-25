@@ -251,7 +251,7 @@ public class DataExportPdfService {
 
 	private void issuesSection(Document doc, User user, boolean de) {
 		List<Issue> reported = issues.findByReporterIdOrderByCreatedAtDesc(user.getId());
-		List<Issue> assigned = issues.findByAssigneeIdOrderByCreatedAtDesc(user.getId());
+		List<Issue> assigned = issues.findByAssigneeIdsContainsOrderByCreatedAtDesc(user.getId());
 
 		section(doc, (de ? "Von dir gemeldete Vorgänge" : "Issues you reported") + " (" + reported.size() + ")");
 		issueTable(doc, reported, de);

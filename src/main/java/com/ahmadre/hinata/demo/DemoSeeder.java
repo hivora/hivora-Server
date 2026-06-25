@@ -461,6 +461,7 @@ public class DemoSeeder {
 				.priority(priority)
 				.state(state)
 				.assigneeId(assignee.getId())
+				.assigneeIds(new java.util.ArrayList<>(java.util.List.of(assignee.getId())))
 				.reporterId(p.getLeadId())
 				.parentId(parentId)
 				.sprintId(sprint == null ? null : sprint.getId())

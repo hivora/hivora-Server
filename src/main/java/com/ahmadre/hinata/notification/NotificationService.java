@@ -33,8 +33,12 @@ public class NotificationService {
 
 	private static final String SUBJECT_PREFIX = "[Hinata] ";
 
-	public void notifyIssueAssigned(Issue issue) {
-		deliver(Set.of(issue.getAssigneeId()), Notification.Type.ISSUE_ASSIGNED,
+	/** Notify each given assignee (except the actor) that the issue is theirs. */
+	public void notifyAssigned(Issue issue, User actor, java.util.Collection<String> assigneeIds) {
+		Set<String> recipients = new HashSet<>(assigneeIds != null ? assigneeIds : Set.of());
+		if (actor != null) recipients.remove(actor.getId());
+		if (recipients.isEmpty()) return;
+		deliver(recipients, Notification.Type.ISSUE_ASSIGNED,
 				issue.getReadableId() + " assigned to you", issue.getTitle(), issueLink(issue));
 	}
 
@@ -249,7 +253,7 @@ public class NotificationService {
 
 	private Set<String> watchersWithout(Issue issue, User exclude) {
 		Set<String> recipients = new HashSet<>(issue.getWatcherIds());
-		if (issue.getAssigneeId() != null) recipients.add(issue.getAssigneeId());
+		if (issue.getAssigneeIds() != null) recipients.addAll(issue.getAssigneeIds());
 		if (issue.getReporterId() != null) recipients.add(issue.getReporterId());
 		if (exclude != null) recipients.remove(exclude.getId());
 		return recipients;

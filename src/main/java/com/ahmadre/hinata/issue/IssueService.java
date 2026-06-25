@@ -19,9 +19,11 @@ import org.springframework.stereotype.Service;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 @Service
@@ -56,6 +58,9 @@ public class IssueService {
 
 	public Issue create(Issue issue, User author) {
 		Project project = projects.get(issue.getProjectId());
+		// The builder sets the list field directly; normalise so the primary
+		// assigneeId is in sync and the list is de-duped/blank-stripped.
+		issue.setAssigneeIds(issue.getAssigneeIds());
 		if (author != null) {
 			projects.assertMember(project, author); // only project members may add issues (A01)
 		}
@@ -80,9 +85,8 @@ public class IssueService {
 				.actorId(author != null ? author.getId() : null)
 				.field(IssueActivity.Field.CREATED)
 				.build());
-		if (saved.getAssigneeId() != null && (author == null || !saved.getAssigneeId().equals(author.getId()))) {
-			notifications.notifyIssueAssigned(saved);
-		}
+		// Notify every assignee (except the creator) that the issue is theirs.
+		notifications.notifyAssigned(saved, author, saved.getAssigneeIds());
 		// Ping anyone @-mentioned in the freshly written description.
 		notifications.notifyNewMentions(saved, author, null, saved.getDescription());
 		return saved;
@@ -122,7 +126,8 @@ public class IssueService {
 			assertAccess(issue, editor);
 		}
 		Issue before = snapshot(issue);
-		String previousAssignee = issue.getAssigneeId();
+		Set<String> previousAssignees = new HashSet<>(
+				issue.getAssigneeIds() != null ? issue.getAssigneeIds() : List.of());
 		String previousState = issue.getState();
 		String previousSprint = issue.getSprintId();
 		mutator.accept(issue);
@@ -154,8 +159,11 @@ public class IssueService {
 		// Ping anyone newly @-mentioned in the description (existing mentions on an
 		// unrelated edit are not re-notified).
 		notifications.notifyNewMentions(saved, editor, before.getDescription(), saved.getDescription());
-		if (saved.getAssigneeId() != null && !saved.getAssigneeId().equals(previousAssignee)) {
-			notifications.notifyIssueAssigned(saved);
+		Set<String> newlyAssigned = new HashSet<>(
+				saved.getAssigneeIds() != null ? saved.getAssigneeIds() : List.of());
+		newlyAssigned.removeAll(previousAssignees);
+		if (!newlyAssigned.isEmpty()) {
+			notifications.notifyAssigned(saved, editor, newlyAssigned);
 		}
 		else if (!saved.getState().equals(previousState)) {
 			notifications.notifyIssueUpdated(saved, editor,
@@ -340,6 +348,7 @@ public class IssueService {
 				.priority(issue.getPriority())
 				.state(issue.getState())
 				.assigneeId(issue.getAssigneeId())
+				.assigneeIds(new ArrayList<>(issue.getAssigneeIds() != null ? issue.getAssigneeIds() : List.of()))
 				.parentId(issue.getParentId())
 				.sprintId(issue.getSprintId())
 				.startDate(issue.getStartDate())
@@ -438,7 +447,13 @@ public class IssueService {
 			query.addCriteria(Criteria.where("projectId").in(scope));
 		}
 		if (state != null) query.addCriteria(Criteria.where("state").is(state));
-		if (assigneeId != null) query.addCriteria(Criteria.where("assigneeId").is(assigneeId));
+		// Match on membership in the assignee list (covers primary + secondary
+		// assignees); the legacy single field is included for un-migrated docs.
+		if (assigneeId != null) {
+			query.addCriteria(new Criteria().orOperator(
+					Criteria.where("assigneeIds").is(assigneeId),
+					Criteria.where("assigneeId").is(assigneeId)));
+		}
 		if (sprintId != null) query.addCriteria(Criteria.where("sprintId").is(sprintId));
 		else if (noSprint) query.addCriteria(Criteria.where("sprintId").is(null));
 		if (type != null) query.addCriteria(Criteria.where("type").is(type));

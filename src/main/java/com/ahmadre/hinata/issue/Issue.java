@@ -72,7 +72,19 @@ public class Issue {
 	@Indexed
 	private String state;
 
+	/**
+	 * Primary assignee — always the first entry of {@link #assigneeIds}, kept in
+	 * sync by the custom setters below. The many single-assignee read sites (board
+	 * swimlanes, gantt, reports, sprint workload) read this field unchanged.
+	 */
 	private String assigneeId;
+
+	/**
+	 * All assignees. The platform runs in single- or multi-assignee mode (admin
+	 * feature flag {@code multi_assignee}); the model always stores a list.
+	 */
+	@Builder.Default
+	private List<String> assigneeIds = new ArrayList<>();
 
 	private String reporterId;
 
@@ -123,6 +135,31 @@ public class Issue {
 
 	@LastModifiedDate
 	private Instant updatedAt;
+
+	/**
+	 * Sets the full assignee list (multi-assignee mode), de-duplicated and blank-
+	 * stripped, and keeps {@link #assigneeId} pointing at the primary (first).
+	 */
+	public void setAssigneeIds(List<String> ids) {
+		List<String> clean = new ArrayList<>();
+		if (ids != null) {
+			for (String each : ids) {
+				if (each != null && !each.isBlank() && !clean.contains(each)) clean.add(each);
+			}
+		}
+		this.assigneeIds = clean;
+		this.assigneeId = clean.isEmpty() ? null : clean.get(0);
+	}
+
+	/**
+	 * Sets the single (primary) assignee, replacing any others — used in
+	 * single-assignee mode and by the legacy {@code assigneeId} API field.
+	 */
+	public void setAssigneeId(String id) {
+		String primary = (id == null || id.isBlank()) ? null : id;
+		this.assigneeId = primary;
+		this.assigneeIds = primary == null ? new ArrayList<>() : new ArrayList<>(List.of(primary));
+	}
 
 	@Data
 	@Builder

@@ -30,6 +30,7 @@ public class IssueController {
 			Issue.Priority priority,
 			String state,
 			String assigneeId,
+			List<String> assigneeIds,
 			String parentId,
 			String sprintId,
 			List<String> tags,
@@ -46,6 +47,7 @@ public class IssueController {
 			Issue.Priority priority,
 			String state,
 			String assigneeId,
+			List<String> assigneeIds,
 			String parentId,
 			String sprintId,
 			List<String> tags,
@@ -88,6 +90,11 @@ public class IssueController {
 	@PostMapping
 	@ResponseStatus(HttpStatus.CREATED)
 	public Issue create(@RequestBody @Valid CreateIssueRequest request) {
+		List<String> assigneeIds = request.assigneeIds();
+		if (assigneeIds == null) {
+			assigneeIds = (request.assigneeId() != null && !request.assigneeId().isBlank())
+					? List.of(request.assigneeId()) : List.of();
+		}
 		Issue issue = Issue.builder()
 				.projectId(request.projectId())
 				.title(request.title())
@@ -95,7 +102,7 @@ public class IssueController {
 				.type(request.type() != null ? request.type() : Issue.Type.TASK)
 				.priority(request.priority() != null ? request.priority() : Issue.Priority.NORMAL)
 				.state(request.state())
-				.assigneeId(request.assigneeId())
+				.assigneeIds(assigneeIds)
 				.parentId(request.parentId())
 				.sprintId(request.sprintId())
 				.tags(request.tags() != null ? request.tags() : List.of())
@@ -115,7 +122,9 @@ public class IssueController {
 			if (request.type() != null) issue.setType(request.type());
 			if (request.priority() != null) issue.setPriority(request.priority());
 			if (request.state() != null) issue.setState(request.state());
-			if (request.assigneeId() != null) {
+			if (request.assigneeIds() != null) {
+				issue.setAssigneeIds(request.assigneeIds());
+			} else if (request.assigneeId() != null) {
 				issue.setAssigneeId(request.assigneeId().isBlank() ? null : request.assigneeId());
 			}
 			if (request.parentId() != null) {

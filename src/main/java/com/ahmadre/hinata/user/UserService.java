@@ -39,6 +39,17 @@ public class UserService {
 	public void delete(User user) {
 		String id = user.getId();
 		mongo.remove(new Query(Criteria.where("userId").is(id)), "notifications");
+		// Remove the user from every assignee list and re-derive the primary
+		// assignee for those issues (setAssigneeIds keeps assigneeId in sync).
+		for (com.ahmadre.hinata.issue.Issue issue :
+				mongo.find(new Query(Criteria.where("assigneeIds").is(id)),
+						com.ahmadre.hinata.issue.Issue.class)) {
+			java.util.List<String> remaining = new java.util.ArrayList<>(issue.getAssigneeIds());
+			remaining.remove(id);
+			issue.setAssigneeIds(remaining);
+			mongo.save(issue);
+		}
+		// Clear the legacy single field for any un-migrated doc not covered above.
 		mongo.updateMulti(new Query(Criteria.where("assigneeId").is(id)),
 				new Update().unset("assigneeId"), "issues");
 		mongo.updateMulti(new Query(Criteria.where("watcherIds").is(id)),
