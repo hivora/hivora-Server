@@ -50,7 +50,7 @@ public class BoardController {
 
 	/** Partial board update — every field is optional (null = no change). */
 	public record UpdateBoardRequest(@Size(max = 120) String name, AgileBoard.Type type,
-			List<String> projectIds, String activeSprintId) {
+			String activeSprintId) {
 	}
 
 	public record SprintRequest(@NotBlank @Size(max = 120) String name, String goal,
@@ -199,16 +199,14 @@ public class BoardController {
 		User user = currentUser.require();
 		AgileBoard board = boards.findById(id).orElseThrow(() -> ApiException.notFound("board"));
 		assertBoardAccess(board, user);
-		// Renaming or re-linking projects is a management action — gate it.
+		// Renaming is a management action — gate it.
 		boolean renaming = req.name() != null && !req.name().equals(board.getName());
-		boolean relinking = req.projectIds() != null && !req.projectIds().isEmpty();
-		if (renaming || relinking) {
+		if (renaming) {
 			assertBoardManage(board, user);
 		}
 		if (req.name() != null) board.setName(req.name());
 		if (req.type() != null) board.setType(req.type());
-		if (relinking) board.setProjectIds(req.projectIds());
-		// Only set when provided, so a rename/relink doesn't wipe the active sprint.
+		// Only set when provided, so a rename doesn't wipe the active sprint.
 		if (req.activeSprintId() != null) board.setActiveSprintId(req.activeSprintId());
 		return boards.save(board);
 	}
