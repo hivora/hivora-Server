@@ -6,14 +6,16 @@ import com.ahmadre.hinata.issue.Issue;
 import com.ahmadre.hinata.issue.IssueService;
 import lombok.RequiredArgsConstructor;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.time.Instant;
-import java.util.Map;
 import java.util.UUID;
 
 @Tag(name = "Attachments")
@@ -61,16 +63,34 @@ public class AttachmentController {
 		return events.subscribe(issue.getId());
 	}
 
-	@GetMapping("/{attachmentId}/download-url")
-	public Map<String, String> downloadUrl(@PathVariable String issueId,
+	/**
+	 * Streams the attachment's bytes through the server (authorized per-issue),
+	 * so the browser never has to reach the object store directly — presigned
+	 * URLs point at the *internal* storage endpoint and aren't reachable from a
+	 * client. Used for both downloads and inline previews; the client fetches
+	 * this with its bearer token and saves/renders the bytes.
+	 */
+	@GetMapping("/{attachmentId}/download")
+	public ResponseEntity<byte[]> download(@PathVariable String issueId,
 			@PathVariable String attachmentId) {
 		Issue issue = issueService.getForUser(issueId, currentUser.require());
 		Issue.Attachment attachment = issue.getAttachments().stream()
 				.filter(a -> a.getId().equals(attachmentId))
 				.findFirst()
 				.orElseThrow(() -> ApiException.notFound("attachment"));
-		return Map.of("url", storage.presignedDownloadUrl(
-				attachment.getObjectKey(), attachment.getFileName()));
+		StorageService.StoredObject object = storage.getObject(attachment.getObjectKey())
+				.orElseThrow(() -> ApiException.notFound("attachment"));
+		String fileName = attachment.getFileName() != null ? attachment.getFileName() : "download";
+		// attachment; filename*=UTF-8'' so umlauts/special chars survive.
+		ContentDisposition disposition = ContentDisposition.attachment()
+				.filename(fileName, java.nio.charset.StandardCharsets.UTF_8)
+				.build();
+		String contentType = attachment.getContentType() != null
+				? attachment.getContentType() : object.contentType();
+		return ResponseEntity.ok()
+				.header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())
+				.contentType(MediaType.parseMediaType(contentType))
+				.body(object.data());
 	}
 
 	@DeleteMapping("/{attachmentId}")
