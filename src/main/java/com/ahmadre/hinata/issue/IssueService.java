@@ -459,7 +459,7 @@ public class IssueService {
 				.text(text)
 				.build();
 		IssueComment saved = comments.save(comment);
-		notifications.notifyIssueCommented(issue, author);
+		notifications.notifyComment(issue, author, text);
 		return saved;
 	}
 

@@ -2,6 +2,7 @@ package com.ahmadre.hinata.notification;
 
 import com.ahmadre.hinata.config.HinataProperties;
 import com.ahmadre.hinata.issue.Issue;
+import com.ahmadre.hinata.me.NotificationPreferences;
 import com.ahmadre.hinata.user.Role;
 import com.ahmadre.hinata.user.User;
 import com.ahmadre.hinata.user.UserRepository;
@@ -12,6 +13,8 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
@@ -40,11 +43,45 @@ public class NotificationService {
 				issue.getReadableId() + " updated", change, issueLink(issue));
 	}
 
-	public void notifyIssueCommented(Issue issue, User author) {
-		deliver(watchersWithout(issue, author), Notification.Type.ISSUE_COMMENTED,
-				"New comment on " + issue.getReadableId(),
-				author.getDisplayName() + " commented on \"" + issue.getTitle() + "\"",
-				issueLink(issue));
+	/** Matches the inline mention token the editor emits: {@code {{user:<id>}}}. */
+	private static final Pattern USER_MENTION = Pattern.compile("\\{\\{user:([^}]+)}}");
+
+	/**
+	 * Fan-out for a new comment. Users named with an {@code @}-mention get a
+	 * direct {@code MENTION} notification; the issue's watchers get the broader
+	 * {@code ISSUE_COMMENTED} notice. A mention supersedes the comment notice, so
+	 * a mentioned watcher is not pinged twice. The comment author never notifies
+	 * themselves.
+	 */
+	public void notifyComment(Issue issue, User author, String text) {
+		Set<String> mentioned = parseUserMentions(text);
+		mentioned.remove(author.getId());
+		if (!mentioned.isEmpty()) {
+			deliver(mentioned, Notification.Type.MENTION,
+					author.getDisplayName() + " mentioned you in " + issue.getReadableId(),
+					author.getDisplayName() + " mentioned you on \"" + issue.getTitle() + "\"",
+					issueLink(issue));
+		}
+		Set<String> watchers = watchersWithout(issue, author);
+		watchers.removeAll(mentioned);
+		if (!watchers.isEmpty()) {
+			deliver(watchers, Notification.Type.ISSUE_COMMENTED,
+					"New comment on " + issue.getReadableId(),
+					author.getDisplayName() + " commented on \"" + issue.getTitle() + "\"",
+					issueLink(issue));
+		}
+	}
+
+	/** Extracts the distinct user ids referenced by {@code {{user:<id>}}} tokens. */
+	static Set<String> parseUserMentions(String text) {
+		Set<String> ids = new HashSet<>();
+		if (text == null) return ids;
+		Matcher m = USER_MENTION.matcher(text);
+		while (m.find()) {
+			String id = m.group(1).trim();
+			if (!id.isEmpty()) ids.add(id);
+		}
+		return ids;
 	}
 
 	// --- Team membership events ----------------------------------------------
@@ -198,17 +235,47 @@ public class NotificationService {
 
 	private void deliver(Set<String> userIds, Notification.Type type, String title, String body,
 			String link) {
+		String eventId = eventId(type);
 		for (String userId : userIds) {
 			if (userId == null) continue;
 			users.findById(userId).filter(User::isActive).ifPresent(user -> {
+				// The in-app (bell) notification is always recorded; e-mail and push
+				// are gated by the recipient's per-event channel preferences.
 				notifications.save(Notification.builder()
 						.userId(user.getId()).type(type).title(title).body(body).link(link).build());
+				NotificationPreferences prefs = prefsOf(user);
 				// In-app notifications keep the relative route; the e-mail button gets
 				// an absolute deep link to the issue on the frontend.
-				mail.send(user.getEmail(), SUBJECT_PREFIX + title, title, body, props.deepLink(link));
-				push.sendToUser(user.getId(), title, body, link);
+				if (prefs.deliversEmail(eventId)) {
+					mail.send(user.getEmail(), SUBJECT_PREFIX + title, title, body, props.deepLink(link));
+				}
+				if (prefs.deliversPush(eventId)) {
+					push.sendToUser(user.getId(), title, body, link);
+				}
 			});
 		}
+	}
+
+	/** Recipient's notification preferences, normalised (defaults for legacy users). */
+	private NotificationPreferences prefsOf(User user) {
+		NotificationPreferences prefs = user.getNotificationPreferences();
+		return (prefs == null ? NotificationPreferences.defaults() : prefs).sanitized();
+	}
+
+	/**
+	 * Maps a notification type to its preference event id (see
+	 * {@link NotificationPreferences#EVENTS}). Transactional account/team/system
+	 * events map to the locked {@code security} event, so they always deliver.
+	 */
+	private static String eventId(Notification.Type type) {
+		return switch (type) {
+			case MENTION -> "mentions";
+			case ISSUE_ASSIGNED -> "assigned";
+			case ISSUE_COMMENTED -> "comments";
+			case ISSUE_UPDATED -> "status";
+			case SPRINT_STARTED -> "sprint";
+			default -> NotificationPreferences.LOCKED;
+		};
 	}
 
 	private String issueLink(Issue issue) {
