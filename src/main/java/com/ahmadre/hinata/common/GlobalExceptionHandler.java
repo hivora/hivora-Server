@@ -52,28 +52,41 @@ public class GlobalExceptionHandler {
 	}
 
 	/**
-	 * Streaming endpoints (e.g. the SSE attachment stream) are mapped with
-	 * {@code produces = text/event-stream}, which presets the response
+	 * Streaming endpoints (e.g. the SSE attachment / issue-link streams) are mapped
+	 * with {@code produces = text/event-stream}, which presets the response
 	 * Content-Type. If the handler throws <em>before</em> the stream opens, that
 	 * preset would force the JSON {@link ApiError} through a non-existent
 	 * text/event-stream converter (HttpMessageNotWritableException → masked 500),
 	 * and the client's {@code Accept: text/event-stream} would otherwise yield a
 	 * 406. Resetting the preset/attribute to JSON lets the real error status and
 	 * body reach the client unchanged.
+	 *
+	 * <p>Once the stream <em>has</em> opened (the initial frame is flushed → the
+	 * response is committed), nothing more can be written: the Content-Type is
+	 * locked and any error body throws on serialization. This is the normal path
+	 * when an SSE client simply disconnects. {@code false} is returned so callers
+	 * skip writing a body entirely.
+	 *
+	 * @return {@code true} if an error body can still be written; {@code false}
+	 *         when the response is already committed.
 	 */
-	private void allowJsonError(HttpServletRequest request, HttpServletResponse response) {
+	private boolean allowJsonError(HttpServletRequest request, HttpServletResponse response) {
+		if (response != null && response.isCommitted()) {
+			return false;
+		}
 		if (request != null) {
 			request.removeAttribute(HandlerMapping.PRODUCIBLE_MEDIA_TYPES_ATTRIBUTE);
 		}
 		if (response != null && MediaType.TEXT_EVENT_STREAM_VALUE.equals(response.getContentType())) {
 			response.setContentType(MediaType.APPLICATION_JSON_VALUE);
 		}
+		return true;
 	}
 
 	@ExceptionHandler(ApiException.class)
 	public ResponseEntity<ApiError> handleApi(ApiException ex, HttpServletRequest request,
 			HttpServletResponse response) {
-		allowJsonError(request, response);
+		if (!allowJsonError(request, response)) return null;
 		String message = t(ex.getMessageKey(), ex.getArgs());
 		return ResponseEntity.status(ex.getStatus()).body(ApiError.of(ex.getStatus(), message, null));
 	}
@@ -108,7 +121,7 @@ public class GlobalExceptionHandler {
 	@ExceptionHandler(AuthenticationException.class)
 	public ResponseEntity<ApiError> handleAuth(AuthenticationException ex, HttpServletRequest request,
 			HttpServletResponse response) {
-		allowJsonError(request, response);
+		if (!allowJsonError(request, response)) return null;
 		return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
 				.body(ApiError.of(HttpStatus.UNAUTHORIZED, t("error.auth.required"), null));
 	}
@@ -116,7 +129,7 @@ public class GlobalExceptionHandler {
 	@ExceptionHandler(AccessDeniedException.class)
 	public ResponseEntity<ApiError> handleDenied(AccessDeniedException ex, HttpServletRequest request,
 			HttpServletResponse response) {
-		allowJsonError(request, response);
+		if (!allowJsonError(request, response)) return null;
 		return ResponseEntity.status(HttpStatus.FORBIDDEN)
 				.body(ApiError.of(HttpStatus.FORBIDDEN, t("error.accessDenied"), null));
 	}
@@ -124,7 +137,14 @@ public class GlobalExceptionHandler {
 	@ExceptionHandler(Exception.class)
 	public ResponseEntity<ApiError> handleUnexpected(Exception ex, HttpServletRequest request,
 			HttpServletResponse response) {
-		allowJsonError(request, response);
+		// Response already committed → an open SSE stream the client dropped. There
+		// is nothing left to send; log quietly and write no body (avoids the
+		// HttpMessageNotWritableException the JSON converter would throw here).
+		if (!allowJsonError(request, response)) {
+			log.debug("Exception after the response was committed (likely an SSE disconnect): {}",
+					ex.toString());
+			return null;
+		}
 		log.error("Unhandled exception", ex);
 		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
 				.body(ApiError.of(HttpStatus.INTERNAL_SERVER_ERROR, t("error.internal"), null));
