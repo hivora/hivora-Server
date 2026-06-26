@@ -14,6 +14,7 @@ import com.ahmadre.hinata.user.UserService;
 import com.ahmadre.hinata.audit.AuditAction;
 import com.ahmadre.hinata.audit.AuditService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -33,6 +34,7 @@ import java.util.Set;
  * destructive path is guarded by the last-active-admin and self-action
  * invariants the UI also enforces, so the server is authoritative.
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class AdminUserService {
@@ -175,6 +177,7 @@ public class AdminUserService {
 				failed++;
 			}
 		}
+		log.info("Invite batch by {}: sent={} failed={} skipped={}", inviterName, sent, failed, skipped);
 		return new InviteResult(sent, failed, skipped);
 	}
 
@@ -197,6 +200,7 @@ public class AdminUserService {
 			if (adminMail.sendInvite(u, inviteUrl(u.getId(), secret), null, inviterName)) sent++;
 			else failed++;
 		}
+		log.info("Resend batch by {}: sent={} failed={} skipped={}", inviterName, sent, failed, skipped);
 		return new InviteResult(sent, failed, skipped);
 	}
 

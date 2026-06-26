@@ -16,11 +16,15 @@ import java.util.List;
 
 /**
  * One-time, idempotent backfill for the admin user-management invite lifecycle.
- * Existing accounts pre-date the {@code joinedAt} field; without it the admin
- * board would read every legacy user as a pending invite. This sets
- * {@code joinedAt = createdAt} (falling back to "now") for any user missing it,
- * so they correctly resolve to ACTIVE/DISABLED. Runs before typed reads and is a
- * no-op once converted / on fresh databases.
+ * Legacy accounts pre-date the {@code joinedAt} field; this sets
+ * {@code joinedAt = createdAt} (falling back to "now") so they resolve to
+ * ACTIVE/DISABLED. Runs before typed reads and is a no-op once converted / on
+ * fresh databases.
+ *
+ * IMPORTANT: a pending invite is exactly {@code invitedAt set && joinedAt
+ * absent}, so it MUST be excluded — otherwise every server restart would stamp
+ * {@code joinedAt} on open invites and silently mark them as joined (breaking
+ * resend and re-invite). Only legacy users (no {@code invitedAt}) are touched.
  */
 @Slf4j
 @Component
@@ -33,9 +37,12 @@ public class UserSchemaMigration implements ApplicationRunner {
 	@Override
 	public void run(ApplicationArguments args) {
 		MongoCollection<Document> col = mongo.getCollection("users");
+		// Legacy users only: missing joinedAt AND never invited. Pending invites
+		// (invitedAt present, joinedAt absent) are deliberately left untouched.
 		// Pipeline update so each document gets its own createdAt copied into joinedAt.
 		UpdateResult result = col.updateMany(
-				new Document("joinedAt", new Document("$exists", false)),
+				new Document("joinedAt", new Document("$exists", false))
+						.append("invitedAt", new Document("$exists", false)),
 				List.of(new Document("$set", new Document("joinedAt",
 						new Document("$ifNull", List.of("$createdAt", "$$NOW"))))));
 		if (result.getModifiedCount() > 0) {

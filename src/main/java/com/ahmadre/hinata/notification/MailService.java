@@ -79,6 +79,7 @@ public class MailService {
 			helper.setSubject(subject);
 			helper.setText(html, true);
 			sender.send(message);
+			log.info("Mail sent to {} (subject: {})", to, subject);
 			return true;
 		}
 		catch (Exception ex) {
