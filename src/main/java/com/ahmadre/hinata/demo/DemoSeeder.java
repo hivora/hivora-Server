@@ -10,6 +10,9 @@ import com.ahmadre.hinata.board.Sprint;
 import com.ahmadre.hinata.board.SprintRepository;
 import com.ahmadre.hinata.config.HinataProperties;
 import com.ahmadre.hinata.issue.Issue;
+import com.ahmadre.hinata.issue.IssueLink;
+import com.ahmadre.hinata.issue.IssueLinkRepository;
+import com.ahmadre.hinata.issue.IssueLinkType;
 import com.ahmadre.hinata.issue.IssueRepository;
 import com.ahmadre.hinata.me.NotificationPreferences;
 import com.ahmadre.hinata.project.Project;
@@ -90,6 +93,7 @@ public class DemoSeeder {
 	private final AgileBoardRepository boards;
 	private final SprintRepository sprints;
 	private final IssueRepository issues;
+	private final IssueLinkRepository issueLinks;
 	private final WorkItemRepository workItems;
 	private final TeamRepository teams;
 	private final ArticleRepository articleRepo;
@@ -157,6 +161,10 @@ public class DemoSeeder {
 		// so the Gantt / Timeline surface renders bars instead of an empty state.
 		scheduleTimeline(hin);
 
+		// Wire a spread of Jira-style issue links so the "Verknüpfte Vorgänge"
+		// panel renders real relationships out of the box.
+		seedIssueLinks(hin);
+
 		// --- this week's tracked work for the admin ------------------------
 		seedTracker(admin, hin);
 
@@ -180,6 +188,7 @@ public class DemoSeeder {
 		mongo.dropCollection(Space.class);
 		mongo.dropCollection(Article.class);
 		mongo.dropCollection(WorkItem.class);
+		mongo.dropCollection(IssueLink.class);
 		mongo.dropCollection(Issue.class);
 		mongo.dropCollection(Sprint.class);
 		mongo.dropCollection(AgileBoard.class);
@@ -597,6 +606,38 @@ public class DemoSeeder {
 			prev = i.getId();
 			offset += 2;
 		}
+	}
+
+	/**
+	 * Seeds a representative spread of {@link IssueLink}s across the first standard
+	 * HIN issues — one of most link types — so the "Verknüpfte Vorgänge" panel and
+	 * its grouped inward/outward verbs render real data on first run.
+	 */
+	private void seedIssueLinks(Project p) {
+		List<Issue> standard = mongo.find(Query.query(Criteria.where("projectId").is(p.getId())
+						.and("type").in(Issue.Type.TASK, Issue.Type.STORY, Issue.Type.BUG,
+								Issue.Type.FEATURE))
+				.with(Sort.by("numberInProject")), Issue.class);
+		if (standard.size() < 6) return;
+		// source "verb" target — stored once, rendered from both ends.
+		link(IssueLinkType.BLOCKS, standard.get(0), standard.get(1));
+		link(IssueLinkType.BLOCKS, standard.get(2), standard.get(3));
+		link(IssueLinkType.RELATES, standard.get(1), standard.get(4));
+		link(IssueLinkType.DUPLICATES, standard.get(5), standard.get(2));
+		link(IssueLinkType.TESTS, standard.get(4), standard.get(0));
+		if (standard.size() >= 8) {
+			link(IssueLinkType.CLONES, standard.get(6), standard.get(7));
+			link(IssueLinkType.SPLITS, standard.get(0), standard.get(6));
+		}
+		log.info("[demo] seeded {} issue links", issueLinks.count());
+	}
+
+	private void link(IssueLinkType type, Issue source, Issue target) {
+		issueLinks.save(IssueLink.builder()
+				.type(type)
+				.sourceId(source.getId())
+				.targetId(target.getId())
+				.build());
 	}
 
 	// ---- time tracking -----------------------------------------------------

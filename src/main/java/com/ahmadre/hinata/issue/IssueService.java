@@ -33,6 +33,8 @@ public class IssueService {
 	private final IssueRepository issues;
 	private final IssueCommentRepository comments;
 	private final IssueActivityRepository activities;
+	private final IssueLinkRepository links;
+	private final IssueLinkEvents linkEvents;
 	private final ProjectService projects;
 	private final NotificationService notifications;
 	private final MongoTemplate mongo;
@@ -44,11 +46,27 @@ public class IssueService {
 				.orElseThrow(() -> ApiException.notFound("issue"));
 	}
 
+	/** Internal lookup by canonical id; null when the issue no longer exists. */
+	public Issue findOrNull(String id) {
+		return id == null ? null : issues.findById(id).orElse(null);
+	}
+
 	/** Lookup that enforces the caller is a member of the issue's project (A01). */
 	public Issue getForUser(String idOrReadableId, User user) {
 		Issue issue = get(idOrReadableId);
 		assertAccess(issue, user);
 		return issue;
+	}
+
+	/** True when {@code user} may see the issue (admin or project member); never throws. */
+	public boolean canAccess(Issue issue, User user) {
+		try {
+			assertAccess(issue, user);
+			return true;
+		}
+		catch (RuntimeException denied) {
+			return false;
+		}
 	}
 
 	/** Throws 403 unless {@code user} is an admin or a member of the project. */
@@ -264,12 +282,30 @@ public class IssueService {
 			for (Issue child : issues.findByParentId(issue.getId())) {
 				comments.deleteByIssueId(child.getId());
 				activities.deleteByIssueId(child.getId());
+				deleteLinksOf(child.getId());
 				issues.delete(child);
 			}
 		}
 		comments.deleteByIssueId(issue.getId());
 		activities.deleteByIssueId(issue.getId());
+		deleteLinksOf(issue.getId());
 		issues.delete(issue);
+	}
+
+	/**
+	 * Removes every issue link touching {@code issueId} (either end) so a deleted
+	 * issue leaves no dangling links, and pings the issue on the other end of each
+	 * so its open detail view drops the stale row live.
+	 */
+	private void deleteLinksOf(String issueId) {
+		List<IssueLink> touching = links.findBySourceIdOrTargetId(issueId, issueId);
+		if (touching.isEmpty()) return;
+		for (IssueLink link : touching) {
+			String other = link.getSourceId().equals(issueId)
+					? link.getTargetId() : link.getSourceId();
+			linkEvents.publishChanged(other);
+		}
+		links.deleteAll(touching);
 	}
 
 	// ── hierarchy ───────────────────────────────────────────────────────────
