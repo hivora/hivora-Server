@@ -22,8 +22,12 @@ public class AdminMailService {
 
 	private final MailService mail;
 
-	/** Invitation to join the workspace — carries the 7-day sign-up link. */
-	public void sendInvite(User invitee, String inviteUrl, String message, String inviterName) {
+	/**
+	 * Invitation to join the workspace — carries the 7-day sign-up link. Sent
+	 * synchronously so the caller learns whether delivery to SMTP succeeded;
+	 * returns {@code true} on success.
+	 */
+	public boolean sendInvite(User invitee, String inviteUrl, String message, String inviterName) {
 		boolean de = "de".equalsIgnoreCase(invitee.getLocale());
 		Map<String, Object> model = new HashMap<>();
 		model.put("locale", de ? "de" : "en");
@@ -32,6 +36,6 @@ public class AdminMailService {
 		model.put("message", message);
 		model.put("expiresDays", 7);
 		String subject = de ? "Du wurdest zu Hinata eingeladen" : "You've been invited to Hinata";
-		mail.sendTemplate(invitee.getEmail(), SUBJECT_PREFIX + subject, "email/invite", model);
+		return mail.sendTemplateSync(invitee.getEmail(), SUBJECT_PREFIX + subject, "email/invite", model);
 	}
 }

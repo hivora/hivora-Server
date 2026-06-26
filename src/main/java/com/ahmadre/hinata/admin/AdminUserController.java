@@ -78,7 +78,8 @@ public class AdminUserController {
 	@PostMapping("/invite")
 	@ResponseStatus(HttpStatus.ACCEPTED)
 	public Map<String, Integer> invite(@RequestBody @Valid InviteRequest request) {
-		return Map.of("sent", service.invite(request.emails(), request.admin(), request.message()));
+		var r = service.invite(request.emails(), request.admin(), request.message());
+		return Map.of("sent", r.sent(), "failed", r.failed(), "skipped", r.skipped());
 	}
 
 	public record IdsRequest(@NotEmpty List<String> ids) {
@@ -86,8 +87,9 @@ public class AdminUserController {
 
 	@PostMapping("/resend")
 	@ResponseStatus(HttpStatus.ACCEPTED)
-	public void resend(@RequestBody @Valid IdsRequest request) {
-		service.resend(request.ids());
+	public Map<String, Integer> resend(@RequestBody @Valid IdsRequest request) {
+		var r = service.resend(request.ids());
+		return Map.of("sent", r.sent(), "failed", r.failed(), "skipped", r.skipped());
 	}
 
 	// --- Status / role -------------------------------------------------------

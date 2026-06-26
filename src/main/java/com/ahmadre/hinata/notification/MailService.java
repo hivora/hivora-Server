@@ -39,24 +39,33 @@ public class MailService {
 	 */
 	@Async
 	public void sendTemplate(String to, String subject, String template, Map<String, Object> model) {
+		sendTemplateSync(to, subject, template, model);
+	}
+
+	/**
+	 * Synchronous templated send for admin flows (invite / resend) that must
+	 * report a real per-recipient outcome instead of fire-and-forget. Returns
+	 * {@code true} only if the message was handed to the SMTP server.
+	 */
+	public boolean sendTemplateSync(String to, String subject, String template, Map<String, Object> model) {
 		SpringTemplateEngine engine = templateEngine.getIfAvailable();
 		if (engine == null) {
-			log.debug("No template engine available; skipping templated mail to {}", to);
-			return;
+			log.warn("No template engine available; cannot send mail to {}", to);
+			return false;
 		}
 		Context context = new Context();
 		context.setVariables(model);
-		dispatch(to, subject, engine.process(template, context));
+		return dispatch(to, subject, engine.process(template, context));
 	}
 
-	private void dispatch(String to, String subject, String html) {
+	private boolean dispatch(String to, String subject, String html) {
 		// Prefer the admin-area SMTP (configured at runtime), falling back to a
 		// Spring-autoconfigured sender if present.
 		JavaMailSender sender = smtp.sender();
 		if (sender == null) sender = mailSender.getIfAvailable();
 		if (sender == null) {
-			log.debug("No SMTP server configured; skipping mail to {}", to);
-			return;
+			log.warn("No SMTP server configured; cannot send mail to {}", to);
+			return false;
 		}
 		try {
 			var message = sender.createMimeMessage();
@@ -70,9 +79,11 @@ public class MailService {
 			helper.setSubject(subject);
 			helper.setText(html, true);
 			sender.send(message);
+			return true;
 		}
 		catch (Exception ex) {
 			log.warn("Sending mail to {} failed: {}", to, ex.getMessage());
+			return false;
 		}
 	}
 

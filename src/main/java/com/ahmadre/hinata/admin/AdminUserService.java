@@ -126,40 +126,78 @@ public class AdminUserService {
 
 	// --- Lifecycle: invite ---------------------------------------------------
 
-	public int invite(List<String> emails, boolean admin, String message) {
+	/** Outcome of a bulk invite/resend so the admin sees what actually happened. */
+	public record InviteResult(int sent, int failed, int skipped) {
+	}
+
+	/**
+	 * Invites each email. A still-pending invite is re-issued (fresh token) and
+	 * re-sent; an address that already belongs to an active member is skipped;
+	 * a new address creates a pending account. Emails are sent SYNCHRONOUSLY and
+	 * sequentially (so a bulk burst doesn't open many parallel SMTP connections),
+	 * and only deliveries the SMTP server accepted are counted as {@code sent}.
+	 */
+	public InviteResult invite(List<String> emails, boolean admin, String message) {
 		Set<Role> roles = admin ? Set.of(Role.ADMIN, Role.MEMBER) : Set.of(Role.MEMBER);
 		String inviterId = currentUser.requireId();
 		String inviterName = users.findById(inviterId).map(User::getDisplayName).orElse("Hinata");
-		int sent = 0;
+		int sent = 0, failed = 0, skipped = 0;
 		for (String raw : emails) {
 			String email = raw == null ? "" : raw.trim().toLowerCase(Locale.ROOT);
-			if (email.isEmpty() || users.existsByEmailIgnoreCase(email)) continue;
+			if (email.isEmpty()) continue;
 			String secret = randomToken();
 			Instant now = Instant.now();
-			User invited = userService.createInvited(email, deriveName(email), roles, inviterId,
-					passwordEncoder.encode(secret), now, now.plus(INVITE_TTL_DAYS, ChronoUnit.DAYS));
-			adminMail.sendInvite(invited, inviteUrl(invited.getId(), secret), message, inviterName);
-			audit.event(AuditAction.USER_INVITED).actor(inviterId, inviterName)
-					.target(invited).meta("role", admin ? "ADMIN" : "MEMBER").log();
-			sent++;
+			User existing = users.findByEmailIgnoreCase(email).orElse(null);
+			User invited;
+			if (existing != null) {
+				if (!existing.isInvitePending()) {
+					skipped++; // already an active member — nothing to invite
+					continue;
+				}
+				// Re-issue a fresh token for the still-pending invite and resend.
+				existing.setInviteTokenHash(passwordEncoder.encode(secret));
+				existing.setInviteExpiresAt(now.plus(INVITE_TTL_DAYS, ChronoUnit.DAYS));
+				existing.setInvitedAt(now);
+				existing.setInvitedBy(inviterId);
+				invited = users.save(existing);
+			}
+			else {
+				invited = userService.createInvited(email, deriveName(email), roles, inviterId,
+						passwordEncoder.encode(secret), now, now.plus(INVITE_TTL_DAYS, ChronoUnit.DAYS));
+			}
+			if (adminMail.sendInvite(invited, inviteUrl(invited.getId(), secret), message, inviterName)) {
+				audit.event(AuditAction.USER_INVITED).actor(inviterId, inviterName)
+						.target(invited).meta("role", admin ? "ADMIN" : "MEMBER").log();
+				sent++;
+			}
+			else {
+				// The pending account remains so the admin can retry via resend.
+				failed++;
+			}
 		}
-		return sent;
+		return new InviteResult(sent, failed, skipped);
 	}
 
-	public void resend(List<String> ids) {
+	public InviteResult resend(List<String> ids) {
+		String inviterId = currentUser.requireId();
+		String inviterName = users.findById(inviterId).map(User::getDisplayName).orElse("Hinata");
+		int sent = 0, failed = 0, skipped = 0;
 		for (String id : ids) {
 			User u = userService.get(id);
-			if (!u.isInvitePending()) continue;
+			if (!u.isInvitePending()) {
+				skipped++;
+				continue;
+			}
 			String secret = randomToken();
 			u.setInviteTokenHash(passwordEncoder.encode(secret));
 			u.setInviteExpiresAt(Instant.now().plus(INVITE_TTL_DAYS, ChronoUnit.DAYS));
 			u.setInvitedAt(Instant.now());
-			u.setInvitedBy(currentUser.requireId());
+			u.setInvitedBy(inviterId);
 			users.save(u);
-			String inviterName = users.findById(currentUser.requireId())
-					.map(User::getDisplayName).orElse("Hinata");
-			adminMail.sendInvite(u, inviteUrl(u.getId(), secret), null, inviterName);
+			if (adminMail.sendInvite(u, inviteUrl(u.getId(), secret), null, inviterName)) sent++;
+			else failed++;
 		}
+		return new InviteResult(sent, failed, skipped);
 	}
 
 	// --- Lifecycle: status / role --------------------------------------------

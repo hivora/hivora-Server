@@ -100,16 +100,21 @@ class AdminUserServiceTest {
 	}
 
 	@Test
-	void inviteSkipsExistingEmailsAndMailsNewOnes() {
-		when(users.existsByEmailIgnoreCase("taken@x.de")).thenReturn(true);
-		when(users.existsByEmailIgnoreCase("fresh@x.de")).thenReturn(false);
+	void inviteSkipsActiveMembersAndMailsNewOnes() {
+		// An address that already belongs to an active member is skipped; a new
+		// address is created and mailed.
+		when(users.findByEmailIgnoreCase("taken@x.de"))
+				.thenReturn(Optional.of(user("taken", Role.MEMBER, true, User.Origin.LOCAL)));
+		when(users.findByEmailIgnoreCase("fresh@x.de")).thenReturn(Optional.empty());
 		when(users.findById("me")).thenReturn(Optional.of(user("me", Role.ADMIN, true, User.Origin.LOCAL)));
 		when(userService.createInvited(anyString(), anyString(), any(), anyString(), anyString(),
 				any(), any())).thenReturn(user("new", Role.MEMBER, false, User.Origin.LOCAL));
+		when(adminMail.sendInvite(any(), anyString(), any(), anyString())).thenReturn(true);
 
-		int sent = service.invite(List.of("taken@x.de", "fresh@x.de"), false, "hi");
+		AdminUserService.InviteResult r = service.invite(List.of("taken@x.de", "fresh@x.de"), false, "hi");
 
-		assertThat(sent).isEqualTo(1);
+		assertThat(r.sent()).isEqualTo(1);
+		assertThat(r.skipped()).isEqualTo(1);
 		verify(adminMail).sendInvite(any(), anyString(), any(), anyString());
 	}
 }
