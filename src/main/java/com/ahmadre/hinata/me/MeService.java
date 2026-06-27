@@ -50,6 +50,7 @@ public class MeService {
 	private final TeamRepository teams;
 	private final ProjectService projects;
 	private final com.ahmadre.hinata.notification.NotificationService notifications;
+	private final com.ahmadre.hinata.notification.GatewayService gateway;
 	private final AuditService audit;
 	private final com.ahmadre.hinata.auth.TokenService tokens;
 
@@ -127,7 +128,7 @@ public class MeService {
 		user.setPasswordResetExpiresAt(Instant.now().plusSeconds(30L * 60));
 		users.save(user);
 		// Deep link straight to the in-app reset page (Flutter), no backend form.
-		accountMail.sendPasswordReset(user, properties.resetLink(user.getId() + "." + secret));
+		accountMail.sendPasswordReset(user, gateway.relayLink("/reset-password", user.getId() + "." + secret));
 		audit.event(AuditAction.PASSWORD_RESET_REQUESTED).actor(user).log();
 	}
 

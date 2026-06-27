@@ -75,20 +75,23 @@ public class HinataProperties {
 	private Security security = new Security();
 	private Mongodb mongodb = new Mongodb();
 	private Demo demo = new Demo();
-	private Fcm fcm = new Fcm();
+	private Gateway gateway = new Gateway();
 
 	/**
-	 * Firebase Cloud Messaging (push). Disabled by default; when a credentials
-	 * file is configured (the Admin-SDK service-account JSON), the server sends a
-	 * push alongside every in-app notification. Without it, push is a no-op so
-	 * dev/test and self-hosters without Firebase still work.
+	 * Hinata Connect — the single central service every Hinata server uses for the
+	 * white-label app: push fan-out (it owns the published app's FCM credentials)
+	 * and the verified universal-link relay (invite/reset deep links). The URL is a
+	 * constant shared by all self-hosted servers; only override for testing. Push
+	 * is no longer configured per-server (no Firebase needed on a self-hoster).
 	 */
 	@Getter
 	@Setter
-	public static class Fcm {
-		private boolean enabled = false;
-		/** Filesystem path to the Firebase Admin-SDK service-account JSON. */
-		private String credentials = "";
+	public static class Gateway {
+		private boolean enabled = true;
+		/** Base URL of the central gateway, e.g. https://connect.track.asta.hn */
+		private String baseUrl = "https://connect.track.asta.hn";
+		/** Sent as X-Bootstrap-Secret when the gateway gates registration (blank = open). */
+		private String bootstrapSecret = "";
 	}
 
 	/**

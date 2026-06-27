@@ -39,7 +39,6 @@ public class ServerSettings {
 	private Kerberos kerberos = new Kerberos();
 	private Cas cas = new Cas();
 	private EmailIngest emailIngest = new EmailIngest();
-	private Push push = new Push();
 	private Audit audit = new Audit();
 
 	@LastModifiedDate
@@ -177,15 +176,6 @@ public class ServerSettings {
 		/** Project that receives issues created from inbound mail. */
 		private String defaultProjectId;
 		private int pollSeconds = 60;
-	}
-
-	/** Firebase Cloud Messaging for mobile push notifications. */
-	@Data
-	public static class Push {
-		private boolean enabled = false;
-		private String fcmProjectId;
-		@JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
-		private String fcmServiceAccountJson;
 	}
 
 	/**

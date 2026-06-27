@@ -37,6 +37,7 @@ build/
 .env.*
 !.env.example
 deploy/mongo-keyfile
+deploy/mongo-keyfile.*
 # Firebase / Google service-account credentials (FCM push, Fastlane Play deploy)
 **/service-account*.json
 **/firebase-service-account*.json
@@ -44,6 +45,7 @@ deploy/mongo-keyfile
 # Generated X.509 PKI (certs, keys, keystores) — never commit private keys
 deploy/x509/dev/
 deploy/x509/prod/
+deploy/x509/bear/
 !deploy/x509/*.sh
 
 # macOS Finder metadata files

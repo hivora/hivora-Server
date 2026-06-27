@@ -90,9 +90,6 @@ public class AdminSettingsController {
 		if (isBlank(updated.getSmtp().getPassword())) {
 			updated.getSmtp().setPassword(current.getSmtp().getPassword());
 		}
-		if (isBlank(updated.getPush().getFcmServiceAccountJson())) {
-			updated.getPush().setFcmServiceAccountJson(current.getPush().getFcmServiceAccountJson());
-		}
 	}
 
 	private boolean isBlank(String value) {

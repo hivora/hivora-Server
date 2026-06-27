@@ -3,7 +3,7 @@ package com.ahmadre.hinata.admin;
 import com.ahmadre.hinata.audit.AuditService;
 import com.ahmadre.hinata.auth.CurrentUser;
 import com.ahmadre.hinata.common.ApiException;
-import com.ahmadre.hinata.config.HinataProperties;
+import com.ahmadre.hinata.notification.GatewayService;
 import com.ahmadre.hinata.me.AccountMailService;
 import com.ahmadre.hinata.me.SessionService;
 import com.ahmadre.hinata.notification.NotificationService;
@@ -46,6 +46,8 @@ class AdminUserServiceTest {
 		userService = mock(UserService.class);
 		sessions = mock(SessionService.class);
 		notifications = mock(NotificationService.class);
+		GatewayService gateway = mock(GatewayService.class);
+		when(gateway.relayLink(anyString(), anyString())).thenReturn("https://connect.example/l/x");
 		adminMail = mock(AdminMailService.class);
 		accountMail = mock(AccountMailService.class);
 		currentUser = mock(CurrentUser.class);
@@ -56,9 +58,8 @@ class AdminUserServiceTest {
 		// RETURNS_SELF makes the mocked Entry return itself for every chained call.
 		AuditService audit = mock(AuditService.class);
 		when(audit.event(any())).thenReturn(mock(AuditService.Entry.class, RETURNS_SELF));
-		service = new AdminUserService(users, userService, sessions, notifications, adminMail,
-				accountMail, currentUser, new BCryptPasswordEncoder(4), new HinataProperties(),
-				audit);
+		service = new AdminUserService(users, userService, sessions, notifications, gateway, adminMail,
+				accountMail, currentUser, new BCryptPasswordEncoder(4), audit);
 	}
 
 	private User user(String id, Role role, boolean active, User.Origin origin) {

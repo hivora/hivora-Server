@@ -2,10 +2,10 @@ package com.ahmadre.hinata.admin;
 
 import com.ahmadre.hinata.auth.CurrentUser;
 import com.ahmadre.hinata.common.ApiException;
-import com.ahmadre.hinata.config.HinataProperties;
 import com.ahmadre.hinata.me.AccountMailService;
 import com.ahmadre.hinata.me.RefreshSession;
 import com.ahmadre.hinata.me.SessionService;
+import com.ahmadre.hinata.notification.GatewayService;
 import com.ahmadre.hinata.notification.NotificationService;
 import com.ahmadre.hinata.user.Role;
 import com.ahmadre.hinata.user.User;
@@ -47,11 +47,11 @@ public class AdminUserService {
 	private final UserService userService;
 	private final SessionService sessions;
 	private final NotificationService notifications;
+	private final GatewayService gateway;
 	private final AdminMailService adminMail;
 	private final AccountMailService accountMail;
 	private final CurrentUser currentUser;
 	private final PasswordEncoder passwordEncoder;
-	private final HinataProperties properties;
 	private final AuditService audit;
 
 	// --- Read: filter + sort + paginate --------------------------------------
@@ -257,7 +257,7 @@ public class AdminUserService {
 			u.setPasswordResetTokenHash(passwordEncoder.encode(secret));
 			u.setPasswordResetExpiresAt(Instant.now().plus(RESET_TTL_MINUTES, ChronoUnit.MINUTES));
 			users.save(u);
-			accountMail.sendPasswordReset(u, properties.resetLink(u.getId() + "." + secret));
+			accountMail.sendPasswordReset(u, gateway.relayLink("/reset-password", u.getId() + "." + secret));
 			audit.event(AuditAction.USER_PASSWORD_RESET_SENT).actor(actingAdmin()).target(u).log();
 		}
 	}
@@ -341,7 +341,7 @@ public class AdminUserService {
 	}
 
 	private String inviteUrl(String userId, String secret) {
-		return properties.inviteLink(userId + "." + secret);
+		return gateway.relayLink("/invite", userId + "." + secret);
 	}
 
 	/** Title-cases the local part of an email as a friendly placeholder name. */
