@@ -1,5 +1,6 @@
 package com.ahmadre.hinata.project;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -71,6 +72,15 @@ public class Project {
 	@Builder.Default
 	private long issueCounter = 0;
 
+	/**
+	 * Per-project Git repository connection + development automation. {@code null}
+	 * until a repository is linked in project settings. Git integration is strictly
+	 * per project: each project owns its provider + repo and its own automation
+	 * rules, expressed against <em>this</em> project's {@link WorkflowState} ids.
+	 * See {@code com.ahmadre.hinata.git}.
+	 */
+	private Git git;
+
 	@CreatedDate
 	private Instant createdAt;
 
@@ -113,6 +123,83 @@ public class Project {
 		private String id;
 		private String name;
 		private int hue;
+	}
+
+	/**
+	 * Per-project Git repository connection. The client only ever sees repo
+	 * identity + sync metadata + automation; the provider access token is stored
+	 * encrypted and {@link JsonIgnore}'d so it is never serialized to a client.
+	 */
+	@Data
+	@Builder
+	@NoArgsConstructor
+	@AllArgsConstructor
+	public static class Git {
+		/** Provider id: {@code github} | {@code gitlab} | {@code bitbucket}. */
+		private String provider;
+		/** Org / group / workspace slug that owns the repository. */
+		private String owner;
+		/** Repository / project name. */
+		private String repo;
+		@Builder.Default
+		private String defaultBranch = "main";
+		/** User id that linked the repository. */
+		private String connectedBy;
+		private Instant connectedAt;
+		private Instant lastSyncAt;
+		/** How the repo was linked: {@code oauth} | {@code token}. */
+		private String method;
+		/** Suggested branch name; {@code {key}} / {@code {summary}} are filled per issue. */
+		@Builder.Default
+		private String branchTemplate = "{key}-{summary}";
+		@Builder.Default
+		private Automation automation = Automation.off();
+		/** Provider access token, encrypted at rest. Never sent to clients. */
+		@JsonIgnore
+		private String encryptedToken;
+	}
+
+	/**
+	 * Repo-event → workflow-transition rules, per project. Each rule stores a
+	 * {@link WorkflowState#getId() state id} (never a name) so renaming/reordering
+	 * the workflow never breaks a rule and a rule can never point at a state that
+	 * no longer exists. All rules default to {@code off}.
+	 */
+	@Data
+	@Builder
+	@NoArgsConstructor
+	@AllArgsConstructor
+	public static class Automation {
+		@Builder.Default
+		private Rule branchCreated = Rule.off();
+		@Builder.Default
+		private Rule commitPushed = Rule.off();
+		@Builder.Default
+		private Rule prOpened = Rule.off();
+		@Builder.Default
+		private Rule prMerged = Rule.off();
+		/** Parse {@code #comment} / {@code #time} / transitions in commit messages. */
+		@Builder.Default
+		private boolean smartCommits = true;
+
+		/** All rules off, smart commits on — the state right after connecting. */
+		public static Automation off() {
+			return Automation.builder().build();
+		}
+	}
+
+	@Data
+	@Builder
+	@NoArgsConstructor
+	@AllArgsConstructor
+	public static class Rule {
+		private boolean on;
+		/** Target {@link WorkflowState#getId()} in this project's workflow. */
+		private String toStateId;
+
+		public static Rule off() {
+			return Rule.builder().on(false).build();
+		}
 	}
 
 	/** Generates a short stable id for a workflow state / label. */
